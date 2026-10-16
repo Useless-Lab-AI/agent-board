@@ -17,11 +17,11 @@
 </p>
 
 <p align="center">
-  <a href="https://gusikows5.github.io/agent-board/promo-video/index.html?lang=zh-CN" title="点击打开 60 FPS 交互式在线宣传演示播放器">
+  <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=zh-CN" title="点击打开 60 FPS 交互式在线宣传演示播放器">
     <img src="docs/promo-video-zh.gif" alt="Agent Board 动态演示视频" width="850" />
   </a>
   <br />
-  <em>🎬 <b>60 FPS 实时动态演示视频</b>：上方为简体中文版自动循环演示动图；点击画面或打开 <a href="https://gusikows5.github.io/agent-board/promo-video/index.html?lang=zh-CN"><b>60 FPS 在线交互式演示播放器</b></a>（本地文件：<a href="promo-video/index.html?lang=zh-CN"><code>promo-video/index.html</code></a>）体验含实时终端流、原位代码 Diff 审批与合成音效的完整演示（支持 简 / 繁 / EN / 日本語）。</em>
+  <em>🎬 <b>60 FPS 实时动态演示视频</b>：上方为简体中文版自动循环演示动图；点击画面或打开 <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=zh-CN"><b>60 FPS 在线交互式演示播放器</b></a>（本地文件：<a href="promo-video/index.html?lang=zh-CN"><code>promo-video/index.html</code></a>）体验含实时终端流、原位代码 Diff 审批与合成音效的完整演示（支持 简 / 繁 / EN / 日本語）。</em>
 </p>
 
 **Agent Board** 是一款轻量、免侵入的本地 AI 会话聚合与交互看板。专为高频使用 **Codex**、**Claude Code** 及 **Antigravity** 的开发者设计。它能够在不干扰原客户端、不托管杀死进程、不上传任何数据的原则下，自动发现本机所有会话，在同屏网格中实时追踪多会话进度，并在弹层中提供双向交互与审批。
@@ -31,7 +31,7 @@
 ## 🎬 宣传视频与实时动态演示
 
 观看 Agent Board 的全景实时工作流演示：
-- **交互式播放器**：点击打开 [**60 FPS 在线交互式演示播放器**](https://gusikows5.github.io/agent-board/promo-video/index.html?lang=zh-CN)，或在本地浏览器中直接打开 [`promo-video/index.html`](promo-video/index.html)（纯本地原生渲染，零外部依赖）。
+- **交互式播放器**：点击打开 [**60 FPS 在线交互式演示播放器**](https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=zh-CN)，或在本地浏览器中直接打开 [`promo-video/index.html`](promo-video/index.html)（纯本地原生渲染，零外部依赖）。
 - **演示章节索引**：
   - `00:00` **实时流式追踪**：多端智能体同屏呈现，高速追加日志并平滑向上自动滚动，旋转 CLI Spinner 指示器。
   - `04:00` **双轨状态解耦**：执行状态（*执行中 / 待确认 / 已完成*）与阅读状态（*新增未读 / 完成未读 / 已读*）清晰分离，金光呼吸高亮待确认项。
@@ -70,7 +70,7 @@
 
 ```powershell
 # 1. 克隆代码仓库
-git clone https://github.com/gusikows5/agent-board.git
+git clone https://github.com/Useless-Lab-AI/agent-board.git
 cd agent-board
 
 # 2. 安装依赖并构建

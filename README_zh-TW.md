@@ -17,11 +17,11 @@
 </p>
 
 <p align="center">
-  <a href="https://gusikows5.github.io/agent-board/promo-video/index.html?lang=zh-TW" title="點擊開啟 60 FPS 互動式線上宣傳展示播放器">
+  <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=zh-TW" title="點擊開啟 60 FPS 互動式線上宣傳展示播放器">
     <img src="docs/promo-video-zh-tw.gif" alt="Agent Board 動態展示影片" width="850" />
   </a>
   <br />
-  <em>🎬 <b>60 FPS 即時動態展示影片</b>：上方為繁體中文版自動循環展示動圖；點擊畫面或開啟 <a href="https://gusikows5.github.io/agent-board/promo-video/index.html?lang=zh-TW"><b>60 FPS 線上互動式展示播放器</b></a>（本機檔案：<a href="promo-video/index.html?lang=zh-TW"><code>promo-video/index.html</code></a>）體驗含即時終端機串流、原位程式碼 Diff 審批與合成音效的完整展示（支援 繁 / 簡 / EN / 日本語）。</em>
+  <em>🎬 <b>60 FPS 即時動態展示影片</b>：上方為繁體中文版自動循環展示動圖；點擊畫面或開啟 <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=zh-TW"><b>60 FPS 線上互動式展示播放器</b></a>（本機檔案：<a href="promo-video/index.html?lang=zh-TW"><code>promo-video/index.html</code></a>）體驗含即時終端機串流、原位程式碼 Diff 審批與合成音效的完整展示（支援 繁 / 簡 / EN / 日本語）。</em>
 </p>
 
 **Agent Board** 是一款輕量、免侵入式的本機 AI 會話聚合與互動看板。專為高頻使用 **Codex**、**Claude Code** 及 **Antigravity** 的開發者打造。它能在不干擾原始客戶端、不託管或強制終止處理程序、不上傳任何資料的前提下，自動探索本機所有會话，在同螢幕網格中即時追蹤多代理執行進度，並於對話框中提供雙向互動與審批能力。
@@ -31,7 +31,7 @@
 ## 🎬 宣傳影片與即時動態展示
 
 觀看 Agent Board 的全景即時工作流程展示：
-- **互動式播放器**：點擊開啟 [**60 FPS 線上互動式展示播放器**](https://gusikows5.github.io/agent-board/promo-video/index.html?lang=zh-TW)，或直接在瀏覽器中開啟 [`promo-video/index.html`](promo-video/index.html)（純本機原生算繪，零外部依賴）。
+- **互動式播放器**：點擊開啟 [**60 FPS 線上互動式展示播放器**](https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=zh-TW)，或直接在瀏覽器中開啟 [`promo-video/index.html`](promo-video/index.html)（純本機原生算繪，零外部依賴）。
 - **展示章節索引**：
   - `00:00` **即時串流追蹤**：多端代理同螢幕呈現，高速追加日誌並平滑向上自動滾動，旋轉 CLI Spinner 指示器。
   - `04:00` **雙軌狀態解耦**：執行狀態（*執行中 / 待確認 / 已完成*）與閱讀狀態（*新增未讀 / 完成未讀 / 已讀*）清晰分離，金光呼吸高亮待確認項。
@@ -70,7 +70,7 @@
 
 ```powershell
 # 1. 複製儲存庫
-git clone https://github.com/gusikows5/agent-board.git
+git clone https://github.com/Useless-Lab-AI/agent-board.git
 cd agent-board
 
 # 2. 安裝相依套件並建置

@@ -17,11 +17,11 @@
 </p>
 
 <p align="center">
-  <a href="https://gusikows5.github.io/agent-board/promo-video/index.html?lang=ja-JP" title="クリックして 60 FPS インタラクティブ実演プレーヤーを起動">
+  <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=ja-JP" title="クリックして 60 FPS インタラクティブ実演プレーヤーを起動">
     <img src="docs/promo-video-ja.gif" alt="Agent Board プロモーション動画プレビュー" width="850" />
   </a>
   <br />
-  <em>🎬 <b>インタラクティブ 60 FPS 実演動画</b>：上部に日本語版アニメーションプレビューが自動再生されます。画面をクリックするか <a href="https://gusikows5.github.io/agent-board/promo-video/index.html?lang=ja-JP"><b>60 FPS オンライン実演プレーヤー</b></a>（ローカル：<a href="promo-video/index.html?lang=ja-JP"><code>promo-video/index.html</code></a>）を開くと、ターミナルストリーミング、インプレース承認、音声シンセサイザーを含む完全なシミュレーションを体験できます（日本語 / EN / 简 / 繁 対応）。</em>
+  <em>🎬 <b>インタラクティブ 60 FPS 実演動画</b>：上部に日本語版アニメーションプレビューが自動再生されます。画面をクリックするか <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=ja-JP"><b>60 FPS オンライン実演プレーヤー</b></a>（ローカル：<a href="promo-video/index.html?lang=ja-JP"><code>promo-video/index.html</code></a>）を開くと、ターミナルストリーミング、インプレース承認、音声シンセサイザーを含む完全なシミュレーションを体験できます（日本語 / EN / 简 / 繁 対応）。</em>
 </p>
 
 **Agent Board** は、ローカル環境で複数の AI コーディングエージェントを並行して運用する開発者のための、軽量かつ非侵入型なダッシュボードです。**Codex**、**Claude Code**、**Antigravity** を完全にサポートし、オリジナルのターミナルや IDE インスタンスを停止・乗っ取ることなく、マシン内の全セッションを自動検出。安定したグリッドビューで進行状況をリアルタイムに追跡し、対話モーダルから双方向の入力や承認を行えます。
@@ -31,7 +31,7 @@
 ## 🎬 プロモーション動画＆ライブデモ
 
 Agent Board のリアルタイムワークフロー実演をご覧ください：
-- **インタラクティブプレーヤー**：[**60 FPS オンライン実演プレーヤー**](https://gusikows5.github.io/agent-board/promo-video/index.html?lang=ja-JP) を開くか、任意のブラウザで [`promo-video/index.html`](promo-video/index.html) を直接開くだけで再生可能（サーバー不要・完全オフライン対応）。
+- **インタラクティブプレーヤー**：[**60 FPS オンライン実演プレーヤー**](https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=ja-JP) を開くか、任意のブラウザで [`promo-video/index.html`](promo-video/index.html) を直接開くだけで再生可能（サーバー不要・完全オフライン対応）。
 - **主要チャプター構成**：
   - `00:00` **リアルタイムストリーミング追跡**：複数エージェントのログを同画面で追跡。サブピクセル自動スクロールと回転する CLI スピナー。
   - `04:00` **2軸状態管理**：実行ステータス（*実行中 / 承認待ち / 完了*）と閲覧状態（*新規未読 / 完了未読 / 既読*）を明確に分離。承認待ちカードはゴールドに脈動。
@@ -70,7 +70,7 @@ Agent Board のリアルタイムワークフロー実演をご覧ください�
 
 ```powershell
 # 1. リポジトリのクローン
-git clone https://github.com/gusikows5/agent-board.git
+git clone https://github.com/Useless-Lab-AI/agent-board.git
 cd agent-board
 
 # 2. 依存関係のインストールとビルド
