@@ -17,13 +17,11 @@
 </p>
 
 <p align="center">
-  <video src="docs/promo-video-en.webm" poster="docs/promo-video-preview.png" width="850" controls autoplay loop muted playsinline>
-    <a href="promo-video/index.html?lang=en-US" title="Click to launch interactive 60 FPS promo video showcase">
-      <img src="docs/promo-video-preview.png" alt="Agent Board Interactive Showcase Video" width="850" />
-    </a>
-  </video>
+  <a href="https://gusikows5.github.io/agent-board/promo-video/index.html?lang=en-US" title="Click to launch interactive 60 FPS promo video showcase">
+    <img src="docs/promo-video-en.gif" alt="Agent Board Interactive Showcase Video" width="850" />
+  </a>
   <br />
-  <em>🎬 <b>Interactive 60 FPS Showcase Video</b>: English 1080p promo video above (playable directly in browser); click the video or open <a href="promo-video/index.html?lang=en-US"><code>promo-video/index.html</code></a> to experience the full interactive simulation with live terminal streaming, in-place approvals, and procedural audio (Supports EN / 简 / 繁 / 日本語).</em>
+  <em>🎬 <b>Interactive 60 FPS Showcase Video</b>: Animated showcase playing above; click the video or open the <a href="https://gusikows5.github.io/agent-board/promo-video/index.html?lang=en-US"><b>Live 60 FPS Interactive Player</b></a> (local: <a href="promo-video/index.html?lang=en-US"><code>promo-video/index.html</code></a>) to experience live terminal streaming, in-place approvals, and procedural audio (Supports EN / 简 / 繁 / 日本語).</em>
 </p>
 
 **Agent Board** is a lightweight, non-invasive local dashboard for developers orchestrating multiple AI coding agents. Purpose-built for **Codex**, **Claude Code**, and **Antigravity**, it automatically discovers your local sessions, tracks streaming outputs across a stable grid view, and enables live two-way interaction and approvals in interactive modals—all without taking over or terminating your original terminal or IDE instances.
@@ -33,7 +31,7 @@
 ## 🎬 Showcase Video & Live Demo
 
 Watch the real-time simulation of Agent Board in action:
-- **Interactive Player**: Open [`promo-video/index.html`](promo-video/index.html) directly in any browser (zero dependencies, 100% offline).
+- **Interactive Player**: Launch the [**Online 60 FPS Interactive Demo**](https://gusikows5.github.io/agent-board/promo-video/index.html?lang=en-US) or open [`promo-video/index.html`](promo-video/index.html) directly in any browser (zero dependencies, 100% offline).
 - **Core Workflow Chapters**:
   - `00:00` **Live Stream Tracking**: Multi-agent terminal streaming with sub-pixel auto-scroll, spinning CLI indicator, and live log coloration.
   - `04:00` **Dual-Track Decoupling**: Complete separation of execution states (*Running / Waiting Approval / Completed*) from reading attention (*New Unread / Completed Unread / Read*).

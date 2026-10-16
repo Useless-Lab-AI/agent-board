@@ -12,6 +12,7 @@ test.cmd
 
 # Keep only public promotional media in docs/
 docs/*
+!docs/promo-video-*.gif
 !docs/promo-video-*.webm
 !docs/promo-video-preview*.png
 !docs/promo-board-preview.png
