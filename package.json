@@ -1,0 +1,64 @@
+{
+  "name": "agent-board",
+  "version": "0.1.0",
+  "description": "Local multi-agent grid dashboard for Codex, Claude Code, and Antigravity",
+  "author": "Agent Board Contributors",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "dist/electron/main.js",
+  "bin": {
+    "agent-board": "./dist/server/api.js",
+    "agent-board-channel": "./dist/server/claude-channel.js",
+    "agent-board-setup": "./dist/server/setup.js"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "tsx watch server/api.ts",
+    "typecheck": "tsc --noEmit",
+    "build:bridge": "node scripts/build-bridge.mjs",
+    "setup:bridge": "node scripts/build-bridge.mjs --install",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build:web": "vite build",
+    "build:electron": "tsc -p tsconfig.electron.json && node -e \"import('node:fs').then(fs => fs.copyFileSync('electron/preload.cjs', 'dist/electron/preload.cjs'))\"",
+    "build": "npm run build:bridge && npm run build:server && npm run build:web && npm run build:electron",
+    "start": "node dist/server/api.js",
+    "setup": "node dist/server/setup.js",
+    "setup:permanent": "node scripts/setup-permanent-channel.mjs",
+    "unsetup:permanent": "node scripts/setup-permanent-channel.mjs --uninstall",
+    "desktop": "npm run build && electron .",
+    "desktop:start": "electron .",
+    "pack:dir": "npm run build && node scripts/pack-desktop.mjs --dir",
+    "dist:win": "npm run build && node scripts/pack-desktop.mjs --win",
+    "dist:mac": "npm run build && node scripts/pack-desktop.mjs --mac",
+    "dist:linux": "npm run build && node scripts/pack-desktop.mjs --linux",
+    "dist:all": "npm run build && node scripts/pack-desktop.mjs -wml",
+    "generate-icons": "powershell -ExecutionPolicy Bypass -File scripts/generate-icons.ps1",
+    "verify:http": "node scripts/verify-http.mjs all",
+    "verify:i18n": "tsx scripts/verify-i18n.mjs",
+    "verify:attachments": "node scripts/verify-attachments.mjs",
+    "verify:copy": "node scripts/verify-code-copy-browser.mjs",
+    "verify:claude-approval": "node scripts/verify-claude-approval.mjs",
+    "generate:promo-assets": "node scripts/generate-promo-assets.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "electron": "^40.2.1",
+    "electron-builder": "^26.15.3",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.1.0"
+  }
+}

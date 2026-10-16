@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-desktop/
+.codex/
+.claude/
+.playwright-cli/
+*.sqlite*
+.env*
+*.log
+electron-out.txt
+test.cmd
+
+# Keep only public promotional media in docs/
+docs/*
+!docs/promo-video-*.webm
+!docs/promo-video-preview*.png
+!docs/promo-board-preview.png

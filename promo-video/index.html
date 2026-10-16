@@ -1,0 +1,2963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Board - Multi-Agent Native Session Dashboard Showcase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Consolas&family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background: #090d16;
+      color: #f1f5f9;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      padding: 16px;
+    }
+    .wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      max-width: 1280px;
+      width: 100%;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 1140px;
+      padding: 4px 6px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #38bdf8;
+    }
+    .lang-switcher {
+      display: flex;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .lang-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .lang-btn:hover {
+      color: #f8fafc;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .lang-btn.active {
+      background: #0284c7;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+    }
+    .status-indicator {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .video-viewport {
+      position: relative;
+      width: 100%;
+      max-width: 1140px;
+      aspect-ratio: 16 / 9;
+      background: #f3f5f4;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .chapter-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 1140px;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .chapter-pill {
+      flex: 1;
+      min-width: 150px;
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 7px;
+      padding: 6px 10px;
+      color: #94a3b8;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .chapter-pill:hover {
+      background: rgba(30, 41, 59, 0.85);
+      border-color: rgba(56, 189, 248, 0.3);
+      color: #38bdf8;
+    }
+    .chapter-pill.active {
+      background: rgba(2, 132, 199, 0.15);
+      border-color: #38bdf8;
+      color: #38bdf8;
+      font-weight: 700;
+    }
+    .chapter-pill .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #64748b;
+    }
+    .chapter-pill.active .dot {
+      background: #38bdf8;
+      box-shadow: 0 0 6px #38bdf8;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 1140px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(14px);
+      padding: 10px 18px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 7px 13px;
+      border-radius: 7px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      border: none;
+      color: #0b0f19;
+      font-weight: 700;
+    }
+    .btn-primary:hover {
+      opacity: 0.95;
+      box-shadow: 0 4px 14px rgba(56, 189, 248, 0.4);
+      color: #0b0f19;
+    }
+    .progress-bar-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 220px;
+    }
+    .timeline {
+      flex: 1;
+      height: 7px;
+      background: rgba(255, 255, 255, 0.14);
+      border-radius: 4px;
+      position: relative;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .timeline-progress {
+      height: 100%;
+      background: linear-gradient(90deg, #38bdf8, #10b981);
+      width: 0%;
+      box-shadow: 0 0 10px #38bdf8;
+    }
+    .time-indicator {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #94a3b8;
+      min-width: 140px;
+    }
+    .shortcut-legend {
+      font-size: 11px;
+      color: #64748b;
+      font-family: 'JetBrains Mono', monospace;
+      display: flex;
+      gap: 14px;
+      max-width: 1140px;
+      width: 100%;
+      justify-content: center;
+      margin-top: 2px;
+    }
+    .shortcut-legend kbd {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrapper">
+  <div class="header-bar">
+    <div class="brand-title">
+      <span id="uiBrandTitle">AGENT BOARD // Authentic Product Showcase</span>
+      <span class="badge" id="uiBrandBadge">REAL UI · NATIVE SESSIONS · MULTILINGUAL</span>
+    </div>
+    
+    <div class="lang-switcher">
+      <button class="lang-btn active" data-lang="en-US">🇺🇸 English</button>
+      <button class="lang-btn" data-lang="zh-CN">🇨🇳 简体中文</button>
+      <button class="lang-btn" data-lang="zh-TW">🇭🇰 繁體中文</button>
+      <button class="lang-btn" data-lang="ja-JP">🇯🇵 日本語</button>
+    </div>
+
+    <div class="status-indicator" id="renderStatus">STATUS: READY [15s · 60 FPS]</div>
+  </div>
+
+  <div class="video-viewport" id="viewport">
+    <canvas id="stage" width="1920" height="1080"></canvas>
+  </div>
+
+  <div class="chapter-bar" id="chapterBar"></div>
+
+  <div class="controls">
+    <div class="btn-group">
+      <button class="btn" id="playBtn">▶ Play</button>
+      <button class="btn" id="restartBtn">↺ Restart</button>
+      <button class="btn" id="soundBtn">🔊 Sound: On</button>
+      <button class="btn" id="speedBtn">1.0x</button>
+    </div>
+
+    <div class="progress-bar-container">
+      <div class="timeline" id="timeline">
+        <div class="timeline-progress" id="timelineProgress"></div>
+      </div>
+      <div class="time-indicator" id="timeText">00:00.00 / 00:15.00</div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn" id="snapshotBtn">📸 Snapshot (1080p PNG)</button>
+      <button class="btn btn-primary" id="exportBtn">📥 Export 1080p Video</button>
+    </div>
+  </div>
+
+  <div class="shortcut-legend">
+    <span><kbd>Space</kbd> Play/Pause</span>
+    <span><kbd>R</kbd> Restart</span>
+    <span><kbd>M</kbd> Mute</span>
+    <span><kbd>S</kbd> Snapshot</span>
+    <span><kbd>1-4</kbd> Language (EN/简/繁/日)</span>
+  </div>
+</div>
+
+<script>
+/**
+ * AGENT BOARD — 100% Authentic Product Showcase (1920x1080, 60 FPS, 15.0s)
+ * Mirrors the exact UI and real features of:
+ * - src/App.tsx (Topbar, Toolbar, Quick New Session buttons +Codex/+Claude/+Antigravity, Grid)
+ * - src/SessionCard.tsx (Vector AgentLogos, project badges, plain status dot+text, Markdown & Tool events, typing indicator)
+ * - src/NewSessionModal.tsx (One-click new session creation with directory, model, voice & attachments)
+ * - src/InteractionPanel.tsx & src/ChatComposer.tsx (Expanded session dialog, approval, follow-up prompt with attachment/voice)
+ */
+
+const I18N = {
+  'en-US': {
+    pageTitle: 'Agent Board - Multi-Agent Native Session Dashboard Showcase',
+    brandTitle: 'AGENT BOARD // Official Feature Showcase',
+    brandBadge: 'NATIVE SESSIONS · REAL-TIME GRID',
+    statusReady: (fps, dur) => `STATUS: READY [${dur}s · ${fps} FPS]`,
+    statusRecording: 'STATUS: RECORDING 1080p FRAMES...',
+    statusComplete: 'STATUS: EXPORT COMPLETE!',
+    play: '▶ Play',
+    pause: '⏸ Pause',
+    restart: '↺ Restart',
+    soundOn: '🔊 Sound: On',
+    soundOff: '🔇 Sound: Off',
+    snapshot: '📸 Snapshot (1080p PNG)',
+    exportVideo: '📥 Export 1080p Video',
+    exportingVideo: '⏳ Recording 1080p Video...',
+    chapters: [
+      { t: 0, label: '① Multi-Agent Grid' },
+      { t: 3.4, label: '② Quick New Session' },
+      { t: 6.6, label: '③ Approve & Follow-up' },
+      { t: 10.4, label: '④ Mark Read & Stow' },
+      { t: 13.1, label: '⑤ Local-First Open Source' }
+    ],
+
+    // Topbar (src/App.tsx)
+    canvasBrandSub: 'Native Sessions · All in One View',
+    connectedLocal: 'Connected locally',
+    langLabel: '🌐 English ▾',
+
+    // Toolbar (src/App.tsx)
+    tabActive: 'Active Board',
+    tabStowed: 'Stowed Sessions',
+    filterSource: 'Source',
+    allSources: 'All Sources ▾',
+    filterStatus: 'Status',
+    allStatuses: 'All Statuses ▾',
+    sessionsCount: n => `${n} sessions`,
+    refreshBtn: '↻ Refresh',
+
+    // Board Heading (src/App.tsx)
+    boardHeading: 'Your AI Workspace',
+    boardSubheading: 'Auto-reads native records · Updates on disk write',
+
+    // Execution & Attention States (src/i18n/locales/en-US.ts)
+    stateRunning: 'Running',
+    stateWaitingApproval: 'Needs Approval',
+    stateCompleted: 'Completed',
+    stateIdle: 'Idle',
+    attUnreadOutput: 'New Unread',
+    attUnreadCompletion: 'Completed Unread',
+    attRead: 'Read',
+
+    // Card Common Actions (src/SessionCard.tsx)
+    roleUser: 'You',
+    roleAi: 'AI',
+    copyFull: 'Copy All',
+    copyCode: 'Copy',
+    toolCallBadge: 'Tool Call',
+    toolResultBadge: 'Tool Result',
+    typingIndicator: p => `${p} is generating a reply…`,
+    btnInteract: 'Interact',
+    btnMarkRead: '✓ Mark Read',
+    btnStow: 'Stow',
+
+    // Card 1: Codex
+    c1Title: 'Refactor Auth Middleware & JWT',
+    c1User: 'Refactor src/auth/jwt.ts to replace hardcoded HS256 secret with async RS256 verification.',
+    c1ToolCall: 'Modify file src/auth/jwt.ts',
+    c1ToolResult: 'Completed · 0.4s · exit 0 · 18 lines',
+    c1AiHeading: '### Auth Middleware Refactored',
+    c1AiBullet: '• Switched to asymmetric RS256 key verification & role claims',
+
+    // Card 2: Claude
+    c2Title: 'Batch Database Migration & Index Tuning',
+    c2User: 'Run schema v15 migration and benchmark composite index query latency.',
+    c2ToolCall: 'npm run migrate:up && npm run bench:query',
+    c2ToolResult: 'Completed · 1.2s · exit 0 · 24 lines',
+    c2AiHeading: '### Index Benchmark Results',
+    c2TableHeaders: ['Index Name', 'Before', 'After'],
+
+    // Card 3: Antigravity
+    c3Title: 'Generate OpenAPI v3 Specs & Types',
+    c3User: 'Parse swagger.json and generate strict TypeScript interface definitions.',
+    c3ToolCall: 'Generate file src/types/api.d.ts',
+    c3ToolResult: 'Completed · 0.6s · exit 0 · 42 lines',
+    c3AiHeading: '### TypeScript Definitions Generated',
+    c3AiBullet1: '• Exported 18 core interfaces (SessionItem, ToolEvent, ApprovalRequest)',
+    c3AiBullet2: '• Passed tsc --noEmit strict type check (0 errors)',
+
+    // Card 4: Codex
+    c4Title: 'Fix WebSocket Reconnect Listener Leak',
+    c4User: 'Investigate duplicate message listener registration during reconnect in server/liveHub.ts.',
+    c4ToolCall: 'npm run test:ws',
+    c4ToolResult: 'Completed · 0.9s · exit 0 · 12 lines',
+    c4AiHeading: '### Root Cause & Fix Verified',
+    c4AiBullet1: '• Cause: Old socket listeners were not cleared before re-subscribing',
+    c4AiBullet2: '• Fix: Added removeAllListeners() on close; all 12 WS tests pass',
+
+    // Chapter 2: NewSessionModal (src/NewSessionModal.tsx)
+    newModalTitle: 'New Agent Session',
+    newModalAgentLabel: '🤖 Select Agent',
+    newModalDirLabel: '📁 Project / Working Directory',
+    newModalDirVal: '📁 agent-board — ~/workspace/agent-board ▾',
+    newModalPasteBtn: '📋 Paste Path',
+    newModalPromptLabel: '💬 Initial Task / Prompt',
+    newModalPromptText: 'Audit API rate-limiter middleware and add Redis sliding-window tests.',
+    newModalModelLabel: '⚡ Model Selection',
+    newModalModelVal: 'Opus 5.5 (Deep Reasoning) ▾',
+    newModalTitleLabel: '🏷️ Session Title (Optional)',
+    newModalTitleVal: 'API Rate-Limiter Audit',
+    newModalCancel: 'Cancel',
+    newModalSubmit: 'Create & Start',
+
+    // Chapter 3: Expanded Session Modal & InteractionPanel (src/InteractionPanel.tsx + ChatComposer.tsx)
+    intWaitingTitle: 'Needs Approval',
+    intConnectedTitle: 'Connected to Native Session',
+    intKeepOpenNote: 'Keep original client open',
+    intPendingHint: 'Pending confirmation detected. Approve or deny below.',
+    intConnectedHint: 'Approved in native session. You can send follow-up instructions anytime.',
+    intApprovalReqTitle: 'Requesting command & file write: npm run test:auth (src/auth/jwt.ts)',
+    intBtnDeny: 'Deny Once',
+    intBtnAllow: '✓ Allow Once',
+    intContinueLabel: 'Continue this session',
+    intPromptText: 'Great, now add unit tests for expired token edge cases based on @auth-spec.md',
+    intAttachBtn: '📎 Attach File',
+    intVoiceBtn: '🎙️ Voice Input',
+    intShortcutHint: 'Enter for newline, Ctrl+Enter to send · Supports attachments & voice input',
+    intBtnStop: 'Stop Turn',
+    intBtnSend: 'Send',
+
+    subtitles: [
+      {
+        tEnd: 3.4,
+        text: '① Multi-Agent Native Board: Auto-discovers local Codex, Claude & Antigravity sessions in one view',
+        sub: 'Renders structured Markdown tables, code blocks, collapsible Tool Call / Result blocks & live typing indicators'
+      },
+      {
+        tEnd: 6.6,
+        text: '② One-Click New Session: Launch Codex, Claude, or Antigravity tasks directly from the board header',
+        sub: 'Select project working directory, model, and initial prompt with file attachments & voice input'
+      },
+      {
+        tEnd: 10.4,
+        text: '③ In-Place Approval & Follow-up: Handle pending confirmations and send follow-up prompts in the modal',
+        sub: 'Click [⚡ Interact] to approve/deny native tool requests or continue the conversation with attachments & voice'
+      },
+      {
+        tEnd: 13.1,
+        text: '④ Attention Triage & Stowing: Mark unread completions as Read and stow finished cards cleanly',
+        sub: 'Stowing only hides cards from the active board view without interrupting your original CLI/IDE sessions'
+      },
+      {
+        tEnd: 15.0,
+        text: '⚡ Local-First & Non-Intrusive: 127.0.0.1 Loopback Only · Native Files as Single Source of Truth',
+        sub: 'npm install && npm run build && npm start  |  http://127.0.0.1:4317  |  100% Open Source'
+      }
+    ],
+
+    outroTitle: 'Native Sessions · All in One View',
+    outroSubtitle: 'Agent Board — Local Multi-Agent Session Dashboard for Developers',
+    outroBadge: '⚡ 100% Open Source · 127.0.0.1 Local-First · Non-Intrusive',
+    outroCommand: '> npm install && npm run build && npm start',
+    outroFootnote: 'Listening on 127.0.0.1:4317 · Works seamlessly alongside Codex / Claude / Antigravity'
+  },
+
+  'zh-CN': {
+    pageTitle: 'Agent Board - 原生多智能体会话看板真实功能演示',
+    brandTitle: 'AGENT BOARD // 真实产品功能演示',
+    brandBadge: '原生会话 · 实时同屏看板',
+    statusReady: (fps, dur) => `状态: 就绪 [${dur}s · ${fps} FPS]`,
+    statusRecording: '状态: 正在逐帧录制 1080p 视频...',
+    statusComplete: '状态: 导出完毕！',
+    play: '▶ 播放',
+    pause: '⏸ 暂停',
+    restart: '↺ 重播',
+    soundOn: '🔊 音效: 开',
+    soundOff: '🔇 音效: 关',
+    snapshot: '📸 截屏 (1080p PNG)',
+    exportVideo: '📥 导出 1080p 视频',
+    exportingVideo: '⏳ 正在录制 1080p 视频...',
+    chapters: [
+      { t: 0, label: '① 多智能体同屏' },
+      { t: 3.4, label: '② 一键新建会话' },
+      { t: 6.6, label: '③ 弹窗审批与追问' },
+      { t: 10.4, label: '④ 标记已读与收纳' },
+      { t: 13.1, label: '⑤ 本地优先开源' }
+    ],
+
+    canvasBrandSub: '原生会话 · 同屏掌握',
+    connectedLocal: '本机已连接',
+    langLabel: '🌐 简体中文 ▾',
+
+    tabActive: '会话看板',
+    tabStowed: '已收纳会话',
+    filterSource: '来源',
+    allSources: '全部来源 ▾',
+    filterStatus: '状态',
+    allStatuses: '全部状态 ▾',
+    sessionsCount: n => `${n} 个会话`,
+    refreshBtn: '↻ 刷新',
+
+    boardHeading: '你的 AI 工作现场',
+    boardSubheading: '自动读取原生记录 · 随日志落盘更新',
+
+    stateRunning: '执行中',
+    stateWaitingApproval: '待确认',
+    stateCompleted: '已完成',
+    stateIdle: '空闲',
+    attUnreadOutput: '新增未读',
+    attUnreadCompletion: '完成未读',
+    attRead: '已读',
+
+    roleUser: '你',
+    roleAi: 'AI',
+    copyFull: '复制全文',
+    copyCode: '复制',
+    toolCallBadge: '工具调用',
+    toolResultBadge: '工具结果',
+    typingIndicator: p => `${p} 正在生成回复…`,
+    btnInteract: '交互',
+    btnMarkRead: '✓ 标记已读',
+    btnStow: '收纳',
+
+    c1Title: '重构认证中间件与 JWT 鉴权',
+    c1User: '请重构 src/auth/jwt.ts，移除硬编码密钥并改为异步 RS256 鉴权。',
+    c1ToolCall: '修改文件 src/auth/jwt.ts',
+    c1ToolResult: '执行完成 · 耗时 0.4s · exit 0 · 18 行输出',
+    c1AiHeading: '### 鉴权模块重构方案',
+    c1AiBullet: '• 已切换至 RS256 非对称签名与零信任角色校验',
+
+    c2Title: '批量数据库迁移与索引优化',
+    c2User: '执行数据库 schema v15 迁移并对比联合索引优化前后的查询耗时。',
+    c2ToolCall: 'npm run migrate:up && npm run bench:query',
+    c2ToolResult: '执行完成 · 耗时 1.2s · exit 0 · 24 行输出',
+    c2AiHeading: '### 联合索引压测对比',
+    c2TableHeaders: ['索引名称', '优化前', '优化后'],
+
+    c3Title: '生成 OpenAPI v3 规范与类型定义',
+    c3User: '解析 swagger.json 并生成完整的 TypeScript 接口定义文件。',
+    c3ToolCall: '生成文件 src/types/api.d.ts',
+    c3ToolResult: '执行完成 · 耗时 0.6s · exit 0 · 42 行输出',
+    c3AiHeading: '### 类型定义已生成落盘',
+    c3AiBullet1: '• 导出 SessionItem、ToolEvent、ApprovalRequest 等 18 个核心接口',
+    c3AiBullet2: '• 通过 tsc --noEmit 严格类型检查 (0 errors)',
+
+    c4Title: '排查 WebSocket 断线重连死锁',
+    c4User: '排查 server/liveHub.ts 中断线重连时的监听器重复注册问题。',
+    c4ToolCall: 'npm run test:ws',
+    c4ToolResult: '执行完成 · 耗时 0.9s · exit 0 · 12 行输出',
+    c4AiHeading: '### 根因定位与修复验证',
+    c4AiBullet1: '• 原因：重连回调中未清理旧 socket 的 message 监听器',
+    c4AiBullet2: '• 修复：在 close 事件中调用 removeAllListeners()，12 项测试全部通过',
+
+    newModalTitle: '新建智能体会话',
+    newModalAgentLabel: '🤖 选择智能体 (Agent)',
+    newModalDirLabel: '📁 项目 / 工作目录',
+    newModalDirVal: '📁 agent-board — ~/workspace/agent-board ▾',
+    newModalPasteBtn: '📋 粘贴路径',
+    newModalPromptLabel: '💬 初始任务 / 指令 (Prompt)',
+    newModalPromptText: '审查 API 限流中间件，并补充 Redis 滑动窗口并发单元测试。',
+    newModalModelLabel: '⚡ 模型选择',
+    newModalModelVal: 'Opus 5.5 (最强推理) ▾',
+    newModalTitleLabel: '🏷️ 会话标题（可选）',
+    newModalTitleVal: 'API 限流中间件审查',
+    newModalCancel: '取消',
+    newModalSubmit: '创建并开始',
+
+    intWaitingTitle: '等待确认',
+    intConnectedTitle: '已连接原会话',
+    intKeepOpenNote: '原客户端保持打开即可',
+    intPendingHint: '检测到待确认请求，请在下方允许或拒绝。',
+    intConnectedHint: '已在原会话中放行，可随时继续发送追问或补充指令。',
+    intApprovalReqTitle: '请求执行命令与修改验证：npm run test:auth (src/auth/jwt.ts)',
+    intBtnDeny: '拒绝本次',
+    intBtnAllow: '✓ 允许本次',
+    intContinueLabel: '继续此会话',
+    intPromptText: '很好，请参考附件 @auth-spec.md 补充过期 Token 边界用例的单元测试',
+    intAttachBtn: '📎 添加附件',
+    intVoiceBtn: '🎙️ 语音输入',
+    intShortcutHint: 'Enter 换行，Ctrl+Enter 发送 · 支持添加附件与语音输入',
+    intBtnStop: '停止本次',
+    intBtnSend: '发送',
+
+    subtitles: [
+      {
+        tEnd: 3.4,
+        text: '① 多智能体同屏看板：自动扫描本机 Codex、Claude 与 Antigravity 原生会话记录',
+        sub: '真实渲染 Markdown 表格、代码块、可折叠【工具调用 / 工具结果】与“正在生成回复…”脉冲动画'
+      },
+      {
+        tEnd: 6.6,
+        text: '② 一键新建会话：直接点击看板右上角【+ Codex / + Claude / + Antigravity】发起任务',
+        sub: '支持选择常用项目工作目录、指定推理模型，并内置附件上传与语音输入'
+      },
+      {
+        tEnd: 10.4,
+        text: '③ 弹窗双向交互与审批：点击【⚡ 交互】展开详情弹窗，原位处理待确认请求并继续追问',
+        sub: '支持【允许本次 / 拒绝本次】权限放行，并通过底部输入框携带附件或语音继续下达指令'
+      },
+      {
+        tEnd: 13.1,
+        text: '④ 注意力分流与视图收纳：一键【✓ 标记已读】消除提醒，点击【收纳】保持工作台整洁',
+        sub: '收纳仅隐藏看板卡片视图，绝不关闭或干扰原终端 / IDE 中的真实会话进程'
+      },
+      {
+        tEnd: 15.0,
+        text: '⚡ 本地优先与免侵入设计：仅监听 127.0.0.1 回环地址 · 原生落盘记录即唯一事实源',
+        sub: 'npm install && npm run build && npm start  |  http://127.0.0.1:4317  |  100% 开源'
+      }
+    ],
+
+    outroTitle: '原生会话 · 同屏掌握',
+    outroSubtitle: 'Agent Board —— 面向开发者的本地多智能体工作现场看板',
+    outroBadge: '⚡ 100% 开源 · 127.0.0.1 纯本地运行 · 免侵入设计',
+    outroCommand: '> npm install && npm run build && npm start',
+    outroFootnote: '监听 127.0.0.1:4317 · 与本机 Codex / Claude / Antigravity 客户端无缝协同'
+  },
+
+  'zh-TW': {
+    pageTitle: 'Agent Board - 原生多智能體工作階段看板真實功能展示',
+    brandTitle: 'AGENT BOARD // 真實產品功能展示',
+    brandBadge: '原生工作階段 · 即時同屏看板',
+    statusReady: (fps, dur) => `狀態: 就緒 [${dur}s · ${fps} FPS]`,
+    statusRecording: '狀態: 正在逐幀錄製 1080p 影片...',
+    statusComplete: '狀態: 匯出完畢！',
+    play: '▶ 播放',
+    pause: '⏸ 暫停',
+    restart: '↺ 重播',
+    soundOn: '🔊 音效: 開',
+    soundOff: '🔇 音效: 關',
+    snapshot: '📸 截圖 (1080p PNG)',
+    exportVideo: '📥 匯出 1080p 影片',
+    exportingVideo: '⏳ 正在錄製 1080p 影片...',
+    chapters: [
+      { t: 0, label: '① 多智能體同屏' },
+      { t: 3.4, label: '② 一鍵新建工作階段' },
+      { t: 6.6, label: '③ 彈窗審批與追問' },
+      { t: 10.4, label: '④ 標記已讀與收納' },
+      { t: 13.1, label: '⑤ 本機優先開源' }
+    ],
+
+    canvasBrandSub: '原生工作階段 · 同屏掌握',
+    connectedLocal: '本機已連線',
+    langLabel: '🌐 繁體中文 ▾',
+
+    tabActive: '工作階段看板',
+    tabStowed: '已收納工作階段',
+    filterSource: '來源',
+    allSources: '全部來源 ▾',
+    filterStatus: '狀態',
+    allStatuses: '全部狀態 ▾',
+    sessionsCount: n => `${n} 個工作階段`,
+    refreshBtn: '↻ 重新整理',
+
+    boardHeading: '你的 AI 工作現場',
+    boardSubheading: '自動讀取原生紀錄 · 隨日誌落盤更新',
+
+    stateRunning: '執行中',
+    stateWaitingApproval: '待確認',
+    stateCompleted: '已完成',
+    stateIdle: '閒置',
+    attUnreadOutput: '新增未讀',
+    attUnreadCompletion: '完成未讀',
+    attRead: '已讀',
+
+    roleUser: '你',
+    roleAi: 'AI',
+    copyFull: '複製全文',
+    copyCode: '複製',
+    toolCallBadge: '工具呼叫',
+    toolResultBadge: '工具結果',
+    typingIndicator: p => `${p} 正在產生回覆…`,
+    btnInteract: '互動',
+    btnMarkRead: '✓ 標記已讀',
+    btnStow: '收納',
+
+    c1Title: '重構認證中介軟體與 JWT 鑑權',
+    c1User: '請重構 src/auth/jwt.ts，移除寫死金鑰並改為非同步 RS256 鑑權。',
+    c1ToolCall: '修改檔案 src/auth/jwt.ts',
+    c1ToolResult: '執行完成 · 耗時 0.4s · exit 0 · 18 行輸出',
+    c1AiHeading: '### 鑑權模組重構方案',
+    c1AiBullet: '• 已切換至 RS256 非對稱簽章與零信任角色校驗',
+
+    c2Title: '批次資料庫遷移與索引最佳化',
+    c2User: '執行資料庫 schema v15 遷移並對比複合索引最佳化前後的查詢耗時。',
+    c2ToolCall: 'npm run migrate:up && npm run bench:query',
+    c2ToolResult: '執行完成 · 耗時 1.2s · exit 0 · 24 行輸出',
+    c2AiHeading: '### 複合索引壓測對比',
+    c2TableHeaders: ['索引名稱', '最佳化前', '最佳化後'],
+
+    c3Title: '產生 OpenAPI v3 規範與型別定義',
+    c3User: '解析 swagger.json 並產生完整的 TypeScript 介面定義檔案。',
+    c3ToolCall: '產生檔案 src/types/api.d.ts',
+    c3ToolResult: '執行完成 · 耗時 0.6s · exit 0 · 42 行輸出',
+    c3AiHeading: '### 型別定義已產生落盤',
+    c3AiBullet1: '• 匯出 SessionItem、ToolEvent、ApprovalRequest 等 18 個核心介面',
+    c3AiBullet2: '• 通過 tsc --noEmit 嚴格型別檢查 (0 errors)',
+
+    c4Title: '排查 WebSocket 斷線重連死結',
+    c4User: '排查 server/liveHub.ts 中斷線重連時的監聽器重複註冊問題。',
+    c4ToolCall: 'npm run test:ws',
+    c4ToolResult: '執行完成 · 耗時 0.9s · exit 0 · 12 行輸出',
+    c4AiHeading: '### 根因定位與修復驗證',
+    c4AiBullet1: '• 原因：重連回呼中未清理舊 socket 的 message 監聽器',
+    c4AiBullet2: '• 修復：在 close 事件中呼叫 removeAllListeners()，12 項測試全部通過',
+
+    newModalTitle: '新建智能體工作階段',
+    newModalAgentLabel: '🤖 選擇智能體 (Agent)',
+    newModalDirLabel: '📁 專案 / 工作目錄',
+    newModalDirVal: '📁 agent-board — ~/workspace/agent-board ▾',
+    newModalPasteBtn: '📋 貼上路徑',
+    newModalPromptLabel: '💬 初始任務 / 指令 (Prompt)',
+    newModalPromptText: '審查 API 限流中介軟體，並補充 Redis 滑動視窗並行單元測試。',
+    newModalModelLabel: '⚡ 模型選擇',
+    newModalModelVal: 'Opus 5.5 (最強推理) ▾',
+    newModalTitleLabel: '🏷️ 工作階段標題（選填）',
+    newModalTitleVal: 'API 限流中介軟體審查',
+    newModalCancel: '取消',
+    newModalSubmit: '建立並開始',
+
+    intWaitingTitle: '等待確認',
+    intConnectedTitle: '已連線原工作階段',
+    intKeepOpenNote: '原用戶端保持開啟即可',
+    intPendingHint: '偵測到待確認請求，請在下方允許或拒絕。',
+    intConnectedHint: '已在原工作階段中放行，可隨時繼續傳送追問或補充指令。',
+    intApprovalReqTitle: '請求執行命令與修改驗證：npm run test:auth (src/auth/jwt.ts)',
+    intBtnDeny: '拒絕本次',
+    intBtnAllow: '✓ 允許本次',
+    intContinueLabel: '繼續此工作階段',
+    intPromptText: '很好，請參考附件 @auth-spec.md 補充過期 Token 邊界案例的單元測試',
+    intAttachBtn: '📎 新增附件',
+    intVoiceBtn: '🎙️ 語音輸入',
+    intShortcutHint: 'Enter 換行，Ctrl+Enter 傳送 · 支援新增附件與語音輸入',
+    intBtnStop: '停止本次',
+    intBtnSend: '傳送',
+
+    subtitles: [
+      {
+        tEnd: 3.4,
+        text: '① 多智能體同屏看板：自動掃描本機 Codex、Claude 與 Antigravity 原生工作階段紀錄',
+        sub: '真實渲染 Markdown 表格、程式碼區塊、可摺疊【工具呼叫 / 工具結果】與「正在產生回覆…」脈衝動畫'
+      },
+      {
+        tEnd: 6.6,
+        text: '② 一鍵新建工作階段：直接點擊看板右上角【+ Codex / + Claude / + Antigravity】發起任務',
+        sub: '支援選擇常用專案工作目錄、指定推理模型，並內建附件上傳與語音輸入'
+      },
+      {
+        tEnd: 10.4,
+        text: '③ 彈窗雙向互動與審批：點擊【⚡ 互動】展開詳情彈窗，原位處理待確認請求並繼續追問',
+        sub: '支援【允許本次 / 拒絕本次】權限放行，並透過底部輸入框攜帶附件或語音繼續下達指令'
+      },
+      {
+        tEnd: 13.1,
+        text: '④ 注意力分流與視圖收納：一鍵【✓ 標記已讀】消除提醒，點擊【收納】保持工作台整潔',
+        sub: '收納僅隱藏看板卡片視圖，絕不關閉或干擾原終端機 / IDE 中的真實工作階段行程'
+      },
+      {
+        tEnd: 15.0,
+        text: '⚡ 本機優先與免侵入設計：僅監聽 127.0.0.1 迴路位址 · 原生落盤紀錄即唯一事實源',
+        sub: 'npm install && npm run build && npm start  |  http://127.0.0.1:4317  |  100% 開源'
+      }
+    ],
+
+    outroTitle: '原生工作階段 · 同屏掌握',
+    outroSubtitle: 'Agent Board —— 面向開發者的本機多智能體工作現場看板',
+    outroBadge: '⚡ 100% 開源 · 127.0.0.1 純本機執行 · 免侵入設計',
+    outroCommand: '> npm install && npm run build && npm start',
+    outroFootnote: '監聽 127.0.0.1:4317 · 與本機 Codex / Claude / Antigravity 用戶端無縫協同'
+  },
+
+  'ja-JP': {
+    pageTitle: 'Agent Board - マルチエージェント・ネイティブセッションボード機能ショーケース',
+    brandTitle: 'AGENT BOARD // 公式機能ショーケース',
+    brandBadge: 'ネイティブセッション · リアルタイム一覧',
+    statusReady: (fps, dur) => `状態: 準備完了 [${dur}s · ${fps} FPS]`,
+    statusRecording: '状態: 1080p フレームを録画中...',
+    statusComplete: '状態: エクスポート完了！',
+    play: '▶ 再生',
+    pause: '⏸ 一時停止',
+    restart: '↺ リスタート',
+    soundOn: '🔊 音声: ON',
+    soundOff: '🔇 音声: OFF',
+    snapshot: '📸 スナップショット (1080p PNG)',
+    exportVideo: '📥 1080p 動画を書き出す',
+    exportingVideo: '⏳ 1080p 動画を録画中...',
+    chapters: [
+      { t: 0, label: '① マルチエージェント一覧' },
+      { t: 3.4, label: '② 新規セッション作成' },
+      { t: 6.6, label: '③ 承認と追加指示' },
+      { t: 10.4, label: '④ 既読と保管 (Stow)' },
+      { t: 13.1, label: '⑤ ローカル優先 OSS' }
+    ],
+
+    canvasBrandSub: 'ネイティブセッション · 一画面で把握',
+    connectedLocal: 'ローカル接続済み',
+    langLabel: '🌐 日本語 ▾',
+
+    tabActive: 'アクティブボード',
+    tabStowed: '保管済みセッション',
+    filterSource: 'ソース',
+    allSources: 'すべてのソース ▾',
+    filterStatus: '状態',
+    allStatuses: 'すべての状態 ▾',
+    sessionsCount: n => `${n} 件のセッション`,
+    refreshBtn: '↻ 更新',
+
+    boardHeading: 'AI ワークスペース',
+    boardSubheading: 'ネイティブ記録を自動読込 · ログ書込時に即時更新',
+
+    stateRunning: '実行中',
+    stateWaitingApproval: '承認待ち',
+    stateCompleted: '完了',
+    stateIdle: '待機中',
+    attUnreadOutput: '新規未読',
+    attUnreadCompletion: '完了未読',
+    attRead: '既読',
+
+    roleUser: 'あなた',
+    roleAi: 'AI',
+    copyFull: '全文コピー',
+    copyCode: 'コピー',
+    toolCallBadge: 'ツール呼出',
+    toolResultBadge: 'ツール結果',
+    typingIndicator: p => `${p} が応答を生成中…`,
+    btnInteract: '操作・対話',
+    btnMarkRead: '✓ 既読にする',
+    btnStow: '保管',
+
+    c1Title: '認証ミドルウェアと JWT 認可の改修',
+    c1User: 'src/auth/jwt.ts を改修し、固定鍵を削除して非同期 RS256 検証に切り替えてください。',
+    c1ToolCall: 'ファイルを変更 src/auth/jwt.ts',
+    c1ToolResult: '実行完了 · 0.4s · exit 0 · 18 行出力',
+    c1AiHeading: '### 認証モジュール改修プラン',
+    c1AiBullet: '• 非対称 RS256 署名検証とロールクレーム検証へ移行完了',
+
+    c2Title: 'DB マイグレーションとインデックス最適化',
+    c2User: 'スキーマ v15 移行を実行し、複合インデックス最適化前後のクエリ時間を比較してください。',
+    c2ToolCall: 'npm run migrate:up && npm run bench:query',
+    c2ToolResult: '実行完了 · 1.2s · exit 0 · 24 行出力',
+    c2AiHeading: '### インデックス比較結果',
+    c2TableHeaders: ['インデックス名', '最適化前', '最適化後'],
+
+    c3Title: 'OpenAPI v3 仕様と TypeScript 型定義生成',
+    c3User: 'swagger.json を解析し、厳密な TypeScript インターフェース定義を生成してください。',
+    c3ToolCall: 'ファイルを生成 src/types/api.d.ts',
+    c3ToolResult: '実行完了 · 0.6s · exit 0 · 42 行出力',
+    c3AiHeading: '### 型定義ファイルを生成完了',
+    c3AiBullet1: '• SessionItem、ToolEvent、ApprovalRequest など 18 個の型を出力',
+    c3AiBullet2: '• tsc --noEmit 厳密型チェック通過 (0 errors)',
+
+    c4Title: 'WebSocket 再接続時のリスナー重複調査',
+    c4User: 'server/liveHub.ts の再接続時にリスナーが重複登録される問題を調査してください。',
+    c4ToolCall: 'npm run test:ws',
+    c4ToolResult: '実行完了 · 0.9s · exit 0 · 12 行出力',
+    c4AiHeading: '### 原因特定と修正完了',
+    c4AiBullet1: '• 原因：再接続コールバックで旧ソケットの message リスナーが未解除',
+    c4AiBullet2: '• 修正：close 時に removeAllListeners() を呼び出し、全 12 テスト通過',
+
+    newModalTitle: '新規エージェントセッション',
+    newModalAgentLabel: '🤖 エージェントを選択',
+    newModalDirLabel: '📁 プロジェクト / 作業ディレクトリ',
+    newModalDirVal: '📁 agent-board — ~/workspace/agent-board ▾',
+    newModalPasteBtn: '📋 パスを貼付',
+    newModalPromptLabel: '💬 初期タスク / 指示 (Prompt)',
+    newModalPromptText: 'API レート制限ミドルウェアを監査し、Redis スライディングウィンドウのテストを追加。',
+    newModalModelLabel: '⚡ モデル選択',
+    newModalModelVal: 'Opus 5.5 (最高推論) ▾',
+    newModalTitleLabel: '🏷️ セッションタイトル（任意）',
+    newModalTitleVal: 'API レート制限ミドルウェア監査',
+    newModalCancel: 'キャンセル',
+    newModalSubmit: '作成して開始',
+
+    intWaitingTitle: '承認待ち',
+    intConnectedTitle: '元セッションに接続済み',
+    intKeepOpenNote: '元のクライアントは開いたままで構いません',
+    intPendingHint: '承認待ちのリクエストが検出されました。下で許可または拒否してください。',
+    intConnectedHint: '元セッションで許可されました。いつでも追加の指示を送信できます。',
+    intApprovalReqTitle: 'コマンド実行と変更検証のリクエスト：npm run test:auth (src/auth/jwt.ts)',
+    intBtnDeny: '今回のみ拒否',
+    intBtnAllow: '✓ 今回のみ許可',
+    intContinueLabel: 'このセッションを続ける',
+    intPromptText: '了解です。添付の @auth-spec.md に基づき期限切れトークンの単体テストを追加してください',
+    intAttachBtn: '📎 ファイル添付',
+    intVoiceBtn: '🎙️ 音声入力',
+    intShortcutHint: 'Enter で改行、Ctrl+Enter で送信 · ファイル添付と音声入力に対応',
+    intBtnStop: '今回を停止',
+    intBtnSend: '送信',
+
+    subtitles: [
+      {
+        tEnd: 3.4,
+        text: '① マルチエージェント一覧ボード：ローカルの Codex、Claude、Antigravity セッションを自動検出',
+        sub: 'Markdown 表やコード、折りたたみ可能な【ツール呼出 / 結果】、「応答を生成中…」アニメーションを忠実に表示'
+      },
+      {
+        tEnd: 6.6,
+        text: '② ワンクリック新規セッション：ヘッダーの【+ Codex / + Claude / + Antigravity】から即座に開始',
+        sub: '作業ディレクトリや推論モデルの選択、ファイル添付・音声入力付きの初期プロンプト送信に対応'
+      },
+      {
+        tEnd: 10.4,
+        text: '③ モーダルでの承認と追加指示：【⚡ 操作・対話】から詳細を開き、承認待ちの許可や追撃指示を送信',
+        sub: '【今回のみ許可 / 拒否】の承認操作と、ファイル添付・音声入力を使った継続チャットを一画面で完結'
+      },
+      {
+        tEnd: 13.1,
+        text: '④ 既読管理と保管 (Stow)：【✓ 既読にする】で通知を整理し、【保管】で完了カードをすっきり収納',
+        sub: '保管はボード上の表示のみを整理し、元の CLI / IDE セッションを閉じたり妨害したりしません'
+      },
+      {
+        tEnd: 15.0,
+        text: '⚡ ローカル優先・非侵襲設計：127.0.0.1 ループバック限定 · ネイティブログが唯一の情報源',
+        sub: 'npm install && npm run build && npm start  |  http://127.0.0.1:4317  |  100% オープンソース'
+      }
+    ],
+
+    outroTitle: 'ネイティブセッション · 一画面で把握',
+    outroSubtitle: 'Agent Board —— 開発者のためのローカル・マルチエージェント管理ボード',
+    outroBadge: '⚡ 100% オープンソース · 127.0.0.1 完全ローカル · 非侵襲設計',
+    outroCommand: '> npm install && npm run build && npm start',
+    outroFootnote: '127.0.0.1:4317 で待受 · Codex / Claude / Antigravity クライアントとシームレスに連携'
+  }
+};
+
+I18N['en'] = I18N['en-US'];
+I18N['zh'] = I18N['zh-CN'];
+I18N['zh-tw'] = I18N['zh-TW'];
+I18N['ja'] = I18N['ja-JP'];
+
+function detectInitialLocale() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const qLang = urlParams.get('lang');
+  if (qLang) {
+    const key = qLang.toLowerCase();
+    if (I18N[key]) return key;
+    if (I18N[qLang]) return qLang;
+  }
+  const saved = localStorage.getItem('agent_board_promo_lang');
+  if (saved && I18N[saved]) return saved;
+
+  const browserLang = navigator.language || navigator.userLanguage || '';
+  if (/^ja/i.test(browserLang)) return 'ja-JP';
+  if (/^zh-TW|^zh-HK|^zh-MO/i.test(browserLang)) return 'zh-TW';
+  if (/^zh/i.test(browserLang)) return 'zh-CN';
+  return 'en-US';
+}
+
+let currentLocale = detectInitialLocale();
+function getStrings() {
+  return I18N[currentLocale] || I18N['en-US'];
+}
+
+// ==========================================
+// 2. OFFICIAL VECTOR AGENT LOGOS (src/AgentLogo.tsx)
+// ==========================================
+const CODEX_SVG_PATH = new Path2D("M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163zM7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898zM12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128zm1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472zm-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0zm-.262 3.9c-2.688 0-4.662-2.021-4.662-4.519 0-.19.024-.38.047-.57l4.686 2.71c.286.167.571.167.856 0l5.97-3.448v2.26c0 .19-.07.333-.237.428l-4.543 2.616c-.619.357-1.356.523-2.117.523zm5.899 2.83a5.947 5.947 0 005.827-4.756C22.287 18.339 24 15.84 24 13.296c0-1.665-.713-3.282-1.998-4.448.119-.5.19-.999.19-1.498 0-3.401-2.759-5.947-5.946-5.946-.642 0-1.26.095-1.88.31A5.962 5.962 0 0010.205 0a5.947 5.947 0 00-5.827 4.757C1.713 5.447 0 7.945 0 10.49c0 1.666.713 3.283 1.998 4.448-.119.5-.19 1-.19 1.499 0 3.401 2.759 5.946 5.946 5.946.642 0 1.26-.095 1.88-.309a5.96 5.96 0 004.162 1.713z");
+
+const CLAUDE_SVG_PATH = new Path2D("M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z");
+
+const ANTIGRAVITY_SVG_PATH = new Path2D("M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z");
+
+function drawAgentProviderBadge(ctx, provider, x, y, size = 33, withBg = true) {
+  let bg = '#e6eeea';
+  let color = '#0a654e';
+  let path = CODEX_SVG_PATH;
+
+  if (provider === 'claude') {
+    bg = '#f6e9df';
+    color = '#a16c4d';
+    path = CLAUDE_SVG_PATH;
+  } else if (provider === 'antigravity') {
+    bg = '#e8f0fe';
+    color = '#185abc';
+    path = ANTIGRAVITY_SVG_PATH;
+  }
+
+  if (withBg) {
+    ctx.fillStyle = bg;
+    roundRect(ctx, x, y, size, size, 8, true, false);
+  }
+
+  const iconSize = withBg ? Math.round(size * 0.58) : size;
+  const scale = iconSize / 24;
+  const offsetX = x + (size - iconSize) / 2;
+  const offsetY = y + (size - iconSize) / 2;
+
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = color;
+  ctx.fill(path);
+  ctx.restore();
+}
+
+// ==========================================
+// 3. TIMING & ENGINE CONSTANTS
+// ==========================================
+const TOTAL_DURATION = 15.0;
+const FPS = 60;
+const TOTAL_FRAMES = TOTAL_DURATION * FPS;
+
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d', { alpha: false });
+const playBtn = document.getElementById('playBtn');
+const restartBtn = document.getElementById('restartBtn');
+const soundBtn = document.getElementById('soundBtn');
+const speedBtn = document.getElementById('speedBtn');
+const snapshotBtn = document.getElementById('snapshotBtn');
+const exportBtn = document.getElementById('exportBtn');
+const timeline = document.getElementById('timeline');
+const timelineProgress = document.getElementById('timelineProgress');
+const timeText = document.getElementById('timeText');
+const renderStatus = document.getElementById('renderStatus');
+const chapterBar = document.getElementById('chapterBar');
+const uiBrandTitle = document.getElementById('uiBrandTitle');
+const uiBrandBadge = document.getElementById('uiBrandBadge');
+
+let currentFrame = 0;
+let isPlaying = true;
+let isRecording = false;
+let audioEnabled = true;
+let playbackSpeed = 1.0;
+let animationId = null;
+let lastTimestamp = 0;
+
+let audioCtx = null;
+function getAudioContext() {
+  if (!audioCtx) {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContext();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playSound(type) {
+  if (!audioEnabled) return;
+  try {
+    const actx = getAudioContext();
+    const now = actx.currentTime;
+    if (type === 'click') {
+      const osc = actx.createOscillator();
+      const gain = actx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1000, now);
+      osc.frequency.exponentialRampToValueAtTime(300, now + 0.04);
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+      osc.connect(gain);
+      gain.connect(actx.destination);
+      osc.start(now);
+      osc.stop(now + 0.04);
+    } else if (type === 'approve') {
+      const osc1 = actx.createOscillator();
+      const osc2 = actx.createOscillator();
+      const gain = actx.createGain();
+      osc1.frequency.setValueAtTime(587.33, now);
+      osc2.frequency.setValueAtTime(880.00, now + 0.06);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(actx.destination);
+      osc1.start(now);
+      osc2.start(now + 0.06);
+      osc1.stop(now + 0.06);
+      osc2.stop(now + 0.32);
+    } else if (type === 'alert') {
+      const osc = actx.createOscillator();
+      const gain = actx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, now);
+      osc.frequency.setValueAtTime(783.99, now + 0.08);
+      gain.gain.setValueAtTime(0.14, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      osc.connect(gain);
+      gain.connect(actx.destination);
+      osc.start(now);
+      osc.stop(now + 0.28);
+    } else if (type === 'archive') {
+      const osc = actx.createOscillator();
+      const gain = actx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(340, now);
+      osc.frequency.exponentialRampToValueAtTime(120, now + 0.18);
+      gain.gain.setValueAtTime(0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      osc.connect(gain);
+      gain.connect(actx.destination);
+      osc.start(now);
+      osc.stop(now + 0.18);
+    }
+  } catch (e) {}
+}
+
+function easeOutCubic(t) { return (--t) * t * t + 1; }
+function easeInOutQuad(t) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
+function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+  const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
+}
+
+function drawCleanShadowRect(ctx, x, y, width, height, radius, fill, stroke, shadowColor, blur, offsetY) {
+  ctx.save();
+  if (shadowColor) {
+    ctx.shadowColor = shadowColor;
+    ctx.shadowBlur = blur || 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = offsetY || 0;
+  }
+  roundRect(ctx, x, y, width, height, radius, fill, stroke);
+  ctx.restore();
+}
+
+function truncateText(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let len = text.length;
+  while (len > 0 && ctx.measureText(text.slice(0, len) + '…').width > maxWidth) {
+    len--;
+  }
+  return text.slice(0, len) + '…';
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) {
+  const isCJK = /[\u4e00-\u9fa5\u3040-\u30ff]/.test(text);
+  const units = isCJK ? Array.from(text) : text.split(' ');
+  let line = '';
+  let lineCount = 0;
+
+  for (let i = 0; i < units.length; i++) {
+    const sep = isCJK ? '' : (line === '' ? '' : ' ');
+    const testLine = line + sep + units[i];
+    if (ctx.measureText(testLine).width > maxWidth && line !== '') {
+      lineCount++;
+      if (lineCount >= maxLines) {
+        ctx.fillText(truncateText(ctx, line + sep + units.slice(i).join(isCJK ? '' : ' '), maxWidth), x, y);
+        return y + lineHeight;
+      }
+      ctx.fillText(line, x, y);
+      line = units[i];
+      y += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line) {
+    ctx.fillText(line, x, y);
+    y += lineHeight;
+  }
+  return y;
+}
+
+// ==========================================
+// 5. MAIN RENDER PIPELINE & DYNAMIC TARGETS
+// ==========================================
+const uiTargets = {
+  quickClaude: { x: 1483, y: 153 },
+  newModalPrompt: { x: 780, y: 454 },
+  newModalSubmit: { x: 1220, y: 686 },
+  card1Interact: { x: 265, y: 921 },
+  intAllow: { x: 1311, y: 588 },
+  intSend: { x: 1330, y: 719 },
+  card3MarkRead: { x: 1031, y: 959 },
+  card4Stow: { x: 1828, y: 959 }
+};
+
+function renderFrame(t) {
+  const S = getStrings();
+
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.globalAlpha = 1.0;
+
+  // Real Agent Board background (--bg: #f3f5f4)
+  ctx.fillStyle = '#f3f5f4';
+  ctx.fillRect(0, 0, 1920, 1080);
+
+  // State timeline evolution synchronized with mouse clicks
+  const card1Exec = t < 1.4 ? 'RUNNING' : (t < 8.4 ? 'WAITING_APPROVAL' : (t < 10.4 ? 'RUNNING' : 'COMPLETED'));
+  const card1Att = t < 1.4 ? 'READ' : (t < 10.4 ? 'UNREAD_OUTPUT' : 'UNREAD_COMPLETION');
+  const card3Exec = 'COMPLETED';
+  const card3Att = t >= 10.9 ? 'READ' : 'UNREAD_COMPLETION';
+  const card4StowProgress = clamp((t - 11.7) / 0.45, 0, 1);
+
+  const showNewSessionModal = t >= 3.5 && t <= 6.2;
+  const showInteractionModal = t >= 6.7 && t <= 10.1;
+  const isApproved = t >= 8.4;
+
+  // 1. Draw Authentic Agent Board Workspace
+  drawFullBoard(t, {
+    card1Exec,
+    card1Att,
+    card3Exec,
+    card3Att,
+    card4StowProgress
+  }, S);
+
+  // 2. Chapter 2: Real NewSessionModal (src/NewSessionModal.tsx)
+  if (showNewSessionModal) {
+    drawNewSessionModal(t, S);
+  }
+
+  // 3. Chapter 3: Real Expanded Session & InteractionPanel Modal (src/SessionCard.tsx + InteractionPanel.tsx)
+  if (showInteractionModal) {
+    drawExpandedSessionModal(t, isApproved, S);
+  }
+
+  // 4. Mouse Pointer & Click Ripples
+  drawBoardMouse(t);
+
+  // 5. Bottom Subtitle Bar
+  drawBoardFooterSubtitle(t, S);
+
+  // 6. Chapter 5: Open-Source Outro
+  if (t >= 13.2) {
+    drawOpenSourceOutro(t - 13.2, S);
+  }
+
+  ctx.restore();
+}
+
+// ==========================================
+// 6. DRAW AUTHENTIC AGENT BOARD (src/App.tsx)
+// ==========================================
+function drawFullBoard(t, state, S) {
+  ctx.save();
+  const pad = 44;
+  const totalW = 1920 - pad * 2;
+
+  // ------------------------------------------
+  // Topbar (src/App.tsx: brand + status-pill + sound + theme + language)
+  // ------------------------------------------
+  const iconSize = 36;
+  const iconY = 24;
+  ctx.fillStyle = '#25634f';
+  roundRect(ctx, pad, iconY, iconSize, iconSize, 9, true, false);
+
+  ctx.font = '700 18px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('▦', pad + iconSize / 2, iconY + iconSize / 2);
+
+  const brandX = pad + iconSize + 12;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '700 20px "Plus Jakarta Sans", "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText('Agent Board', brandX, 40);
+
+  ctx.font = '500 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#606d64';
+  ctx.fillText(S.canvasBrandSub, brandX, 57);
+
+  // Right Topbar Controls: [● Connected locally] [🔊] [🖥|☀️|🌙] [🌐 Language ▾]
+  let rightX = 1920 - pad;
+
+  // Language switcher
+  ctx.font = '600 12px "Segoe UI", sans-serif';
+  const langW = Math.max(116, ctx.measureText(S.langLabel).width + 26);
+  rightX -= langW;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#d3ddd6';
+  ctx.lineWidth = 1;
+  roundRect(ctx, rightX, 26, langW, 32, 8, true, true);
+  ctx.fillStyle = '#1e2b24';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(S.langLabel, rightX + langW / 2, 42);
+
+  // Theme switcher [🖥 | ☀️ | 🌙]
+  rightX -= 104;
+  ctx.fillStyle = '#e7ece8';
+  ctx.strokeStyle = '#dde5e0';
+  roundRect(ctx, rightX, 26, 94, 32, 8, true, true);
+  ctx.fillStyle = '#ffffff';
+  roundRect(ctx, rightX + 32, 29, 28, 26, 6, true, false);
+  ctx.fillStyle = '#1e2b24';
+  ctx.font = '13px "Segoe UI Emoji", sans-serif';
+  ctx.fillText('🖥', rightX + 16, 42);
+  ctx.fillText('☀️', rightX + 46, 42);
+  ctx.fillText('🌙', rightX + 76, 42);
+
+  // Sound toggle [🔊]
+  rightX -= 44;
+  ctx.fillStyle = '#e7ece8';
+  ctx.strokeStyle = '#dde5e0';
+  roundRect(ctx, rightX, 26, 34, 32, 8, true, true);
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText('🔊', rightX + 17, 42);
+
+  // Status Pill [● Connected locally]
+  ctx.font = '600 12px "Segoe UI", sans-serif';
+  const statusTextW = ctx.measureText(S.connectedLocal).width;
+  const pillW = statusTextW + 34;
+  rightX -= (pillW + 10);
+  ctx.fillStyle = '#e7ece8';
+  ctx.strokeStyle = '#dde5e0';
+  roundRect(ctx, rightX, 26, pillW, 32, 999, true, true);
+
+  ctx.fillStyle = '#25634f';
+  ctx.beginPath();
+  ctx.arc(rightX + 14, 42, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#38463d';
+  ctx.textAlign = 'left';
+  ctx.fillText(S.connectedLocal, rightX + 24, 42);
+
+  // ------------------------------------------
+  // Toolbar (src/App.tsx: Tabs + Filters + Count + Refresh)
+  // ------------------------------------------
+  const tbY = 72;
+  const tbH = 52;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#dde5e0';
+  ctx.lineWidth = 1;
+  roundRect(ctx, pad, tbY, totalW, tbH, 12, true, true);
+
+  // Tab container
+  ctx.fillStyle = '#eef2ef';
+  roundRect(ctx, pad + 10, tbY + 7, 290, 38, 9, true, false);
+
+  // Tab 1: Active Board
+  ctx.font = '600 13px "Segoe UI", sans-serif';
+  const t1W = 136;
+  ctx.fillStyle = '#ffffff';
+  roundRect(ctx, pad + 14, tbY + 10, t1W, 32, 7, true, false);
+  ctx.fillStyle = '#1e2b24';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(S.tabActive, pad + 14 + t1W / 2, tbY + 26);
+
+  // Tab 2: Stowed Sessions
+  const stowedSuffix = state.card4StowProgress >= 1 ? ' (1)' : '';
+  ctx.font = '500 13px "Segoe UI", sans-serif';
+  ctx.fillStyle = state.card4StowProgress >= 1 ? '#25634f' : '#606d64';
+  ctx.fillText(S.tabStowed + stowedSuffix, pad + 14 + t1W + 74, tbY + 26);
+
+  // Filters: Source & Status
+  let fx = pad + 322;
+  ctx.textAlign = 'left';
+  ctx.font = '500 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#606d64';
+  ctx.fillText(S.filterSource, fx, tbY + 26);
+  fx += ctx.measureText(S.filterSource).width + 8;
+
+  ctx.font = '500 12px "Segoe UI", sans-serif';
+  const srcW = Math.max(110, ctx.measureText(S.allSources).width + 24);
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#d3ddd6';
+  roundRect(ctx, fx, tbY + 10, srcW, 32, 8, true, true);
+  ctx.fillStyle = '#1e2b24';
+  ctx.textAlign = 'center';
+  ctx.fillText(S.allSources, fx + srcW / 2, tbY + 26);
+
+  fx += srcW + 16;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#606d64';
+  ctx.fillText(S.filterStatus, fx, tbY + 26);
+  fx += ctx.measureText(S.filterStatus).width + 8;
+
+  const stW = Math.max(110, ctx.measureText(S.allStatuses).width + 24);
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#d3ddd6';
+  roundRect(ctx, fx, tbY + 10, stW, 32, 8, true, true);
+  ctx.fillStyle = '#1e2b24';
+  ctx.textAlign = 'center';
+  ctx.fillText(S.allStatuses, fx + stW / 2, tbY + 26);
+
+  // Right side: Session count + Refresh button
+  const activeCount = state.card4StowProgress >= 1 ? 3 : 4;
+  ctx.textAlign = 'right';
+  ctx.font = '500 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#606d64';
+  ctx.fillText(S.sessionsCount(activeCount), 1920 - pad - 102, tbY + 26);
+
+  const refX = 1920 - pad - 88;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#d3ddd6';
+  roundRect(ctx, refX, tbY + 10, 78, 32, 8, true, true);
+  ctx.fillStyle = '#1e2b24';
+  ctx.font = '600 12px "Segoe UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(S.refreshBtn, refX + 39, tbY + 26);
+
+  // ------------------------------------------
+  // Board Heading & Quick New Session Buttons (src/App.tsx)
+  // ------------------------------------------
+  const bhY = 138;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 16px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText(S.boardHeading, pad, bhY + 15);
+
+  // Right side of Board Heading: [+ Codex] [+ Claude] [+ Antigravity] + Subheading
+  ctx.textAlign = 'right';
+  ctx.font = '400 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#606d64';
+  ctx.fillText(S.boardSubheading, 1920 - pad, bhY + 15);
+  const subW = ctx.measureText(S.boardSubheading).width;
+
+  const quickProviders = [
+    { id: 'codex', label: '+ Codex', w: 92 },
+    { id: 'claude', label: '+ Claude', w: 94 },
+    { id: 'antigravity', label: '+ Antigravity', w: 122 }
+  ];
+  let qx = 1920 - pad - subW - 16;
+  for (let i = quickProviders.length - 1; i >= 0; i--) {
+    const qp = quickProviders[i];
+    qx -= qp.w;
+    if (qp.id === 'claude') {
+      uiTargets.quickClaude = { x: qx + qp.w / 2, y: bhY + 15 };
+    }
+    const isHovered = (qp.id === 'claude' && t >= 3.2 && t <= 3.7);
+    ctx.fillStyle = isHovered ? '#eef5f1' : '#ffffff';
+    ctx.strokeStyle = isHovered ? '#25634f' : '#cedbd3';
+    ctx.lineWidth = isHovered ? 1.5 : 1;
+    roundRect(ctx, qx, bhY, qp.w, 30, 8, true, true);
+
+    drawAgentProviderBadge(ctx, qp.id, qx + 10, bhY + 7, 16, false);
+    ctx.textAlign = 'left';
+    ctx.font = '600 12px "Segoe UI", sans-serif';
+    ctx.fillStyle = isHovered ? '#25634f' : '#1e2b24';
+    ctx.fillText(qp.label, qx + 30, bhY + 15);
+    qx -= 8;
+  }
+
+  // ------------------------------------------
+  // 4 Authentic Session Cards in Grid (src/SessionCard.tsx)
+  // ------------------------------------------
+  const cardW = 442;
+  const cardH = 804;
+  const gap = (totalW - cardW * 4) / 3;
+  const startY = 178;
+
+  // Pre-record Card 4 Stow button resting target so it stays stable even during/after stowing
+  ctx.font = '500 11.5px "Segoe UI", sans-serif';
+  const c4StowW = Math.max(64, ctx.measureText(S.btnStow).width + 24);
+  const c4BaseX = pad + (cardW + gap) * 3;
+  const c4BaseFootY = startY + cardH - 88 + 10 + 34 + 8;
+  uiTargets.card4Stow = { x: c4BaseX + cardW - 16 - c4StowW / 2, y: c4BaseFootY + 13 };
+
+  // Card 1: Codex
+  drawAuthenticSessionCard(pad, startY, cardW, cardH, {
+    provider: 'codex',
+    providerName: 'Codex',
+    nativeId: '0196fb2a',
+    projectName: 'agent-board',
+    title: S.c1Title,
+    execution: state.card1Exec,
+    attention: state.card1Att,
+    cardIndex: 0
+  }, t, 1.0, S);
+
+  // Card 2: Claude (Running with Markdown Table + Typing Indicator)
+  drawAuthenticSessionCard(pad + (cardW + gap), startY, cardW, cardH, {
+    provider: 'claude',
+    providerName: 'Claude',
+    nativeId: '94a8c31e',
+    projectName: 'agent-board',
+    title: S.c2Title,
+    execution: 'RUNNING',
+    attention: 'UNREAD_OUTPUT',
+    cardIndex: 1
+  }, t, 1.0, S);
+
+  // Card 3: Antigravity (Completed Unread -> Marked Read in Ch.4)
+  drawAuthenticSessionCard(pad + (cardW + gap) * 2, startY, cardW, cardH, {
+    provider: 'antigravity',
+    providerName: 'Antigravity',
+    nativeId: '7bc920df',
+    projectName: 'agent-board',
+    title: S.c3Title,
+    execution: state.card3Exec,
+    attention: state.card3Att,
+    cardIndex: 2
+  }, t, 1.0, S);
+
+  // Card 4: Codex (Idle -> Stowed in Ch.4)
+  let c4Y = startY;
+  let c4Alpha = 1.0;
+  if (state.card4StowProgress > 0) {
+    c4Y += state.card4StowProgress * 48;
+    c4Alpha = 1.0 - state.card4StowProgress;
+  }
+  if (c4Alpha > 0.01) {
+    drawAuthenticSessionCard(pad + (cardW + gap) * 3, c4Y, cardW, cardH, {
+      provider: 'codex',
+      providerName: 'Codex',
+      nativeId: '3e810a4c',
+      projectName: 'agent-board',
+      title: S.c4Title,
+      execution: 'IDLE',
+      attention: 'READ',
+      cardIndex: 3
+    }, t, c4Alpha, S);
+  }
+
+  ctx.restore();
+}
+
+// ==========================================
+// 7. DRAW AUTHENTIC SESSION CARD (src/SessionCard.tsx)
+// ==========================================
+function drawAuthenticSessionCard(x, y, w, h, session, t, alpha, S) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  const isWaiting = session.execution === 'WAITING_APPROVAL';
+  const isRunning = session.execution === 'RUNNING';
+
+  // Card surface & border (amber pulse when WAITING_APPROVAL, subtle green tint when RUNNING)
+  if (isWaiting) {
+    const pulse = (Math.sin(t * 6) + 1) * 0.5;
+    drawCleanShadowRect(ctx, x, y, w, h, 12, true, false, `rgba(217, 119, 6, ${0.14 + pulse * 0.14})`, 18, 4);
+    ctx.fillStyle = '#fffdf9';
+    ctx.strokeStyle = '#d97706';
+    ctx.lineWidth = 1.8;
+  } else {
+    drawCleanShadowRect(ctx, x, y, w, h, 12, true, false, 'rgba(20, 36, 27, 0.06)', 14, 4);
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = isRunning ? '#bfd6c9' : '#dde5e0';
+    ctx.lineWidth = 1;
+  }
+  roundRect(ctx, x, y, w, h, 12, true, true);
+
+  // ------------------------------------------
+  // 1. Card Header: 33x33 AgentLogo + Title + Subtitle (Provider · nativeId + 📁 projectName) + Plain ↗
+  // ------------------------------------------
+  const padX = x + 16;
+  drawAgentProviderBadge(ctx, session.provider, padX, y + 15, 33, true);
+
+  ctx.font = '600 14px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText(truncateText(ctx, session.title, w - 104), padX + 43, y + 29);
+
+  // Subtitle: Provider · nativeId
+  ctx.font = '400 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#606d64';
+  const subStr = `${session.providerName} · ${session.nativeId}`;
+  ctx.fillText(subStr, padX + 43, y + 47);
+
+  // Project Badge: 📁 agent-board (.project-badge)
+  const subW = ctx.measureText(subStr).width;
+  const badgeX = padX + 43 + subW + 8;
+  const projText = `📁 ${session.projectName}`;
+  ctx.font = '500 11px "Segoe UI", sans-serif';
+  const projW = ctx.measureText(projText).width + 14;
+  ctx.fillStyle = '#edf3ef';
+  ctx.strokeStyle = '#d5e2da';
+  ctx.lineWidth = 1;
+  roundRect(ctx, badgeX, y + 34, projW, 18, 5, true, true);
+  ctx.fillStyle = '#2d4c3e';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(projText, badgeX + 7, y + 43);
+
+  // Plain ↗ expand icon (.card-expand-icon: background transparent, border none, color #849086)
+  ctx.font = '400 15px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#849086';
+  ctx.textAlign = 'center';
+  ctx.fillText('↗', x + w - 24, y + 26);
+
+  // ------------------------------------------
+  // 2. Badges Row (.session-badges: plain dot+text on left, attention pill/text on right)
+  // ------------------------------------------
+  const badgeRowY = y + 68;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+
+  let execColor = '#849086';
+  let execLabel = S.stateIdle;
+  if (session.execution === 'WAITING_APPROVAL') {
+    execColor = '#b85c00';
+    execLabel = S.stateWaitingApproval;
+  } else if (session.execution === 'RUNNING') {
+    execColor = '#0284c7';
+    execLabel = S.stateRunning;
+  } else if (session.execution === 'COMPLETED') {
+    execColor = '#25634f';
+    execLabel = S.stateCompleted;
+  }
+
+  // Status dot (7x7)
+  ctx.fillStyle = execColor;
+  ctx.beginPath();
+  ctx.arc(padX + 4, badgeRowY, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.font = '600 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = execColor;
+  ctx.fillText(execLabel, padX + 13, badgeRowY);
+
+  // Right-aligned Attention Badge
+  const isUnread = session.attention === 'UNREAD_OUTPUT' || session.attention === 'UNREAD_COMPLETION';
+  const attLabel = session.attention === 'UNREAD_OUTPUT'
+    ? S.attUnreadOutput
+    : (session.attention === 'UNREAD_COMPLETION' ? S.attUnreadCompletion : S.attRead);
+
+  if (isUnread) {
+    ctx.font = '600 11px "Segoe UI", sans-serif';
+    const aw = ctx.measureText(attLabel).width + 16;
+    ctx.fillStyle = '#e5f2eb';
+    roundRect(ctx, x + w - 16 - aw, badgeRowY - 10, aw, 20, 999, true, false);
+    ctx.fillStyle = '#226649';
+    ctx.textAlign = 'center';
+    ctx.fillText(attLabel, x + w - 16 - aw / 2, badgeRowY);
+  } else {
+    ctx.font = '500 11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#909a92';
+    ctx.textAlign = 'right';
+    ctx.fillText(attLabel, x + w - 16, badgeRowY);
+  }
+
+  // ------------------------------------------
+  // 3. Card Body: Authentic Structured Event Stream (.session-events)
+  // ------------------------------------------
+  const bodyY = y + 86;
+  const bodyH = h - 180;
+  const innerW = w - 32;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(padX, bodyY, innerW, bodyH);
+  ctx.clip();
+
+  let curY = bodyY + 4;
+
+  if (session.cardIndex === 0) {
+    // Card 1: User bubble -> Collapsible Tool Call -> Collapsible Tool Result -> AI Markdown + Code Block
+    curY = drawUserEventBubble(ctx, padX, curY, innerW, S.roleUser, '14:20', S.copyFull, S.c1User);
+    curY = drawToolCallBlock(ctx, padX, curY, innerW, '📄', S.toolCallBadge, S.c1ToolCall, '14:21');
+    curY = drawToolResultBlock(ctx, padX, curY, innerW, S.toolResultBadge, S.c1ToolResult, 'exit 0', '0.4s');
+    curY = drawAiMarkdownCodeEvent(ctx, padX, curY, innerW, S, {
+      time: '14:21',
+      heading: S.c1AiHeading,
+      bullet: S.c1AiBullet,
+      lang: 'typescript',
+      codeLines: [
+        'export async function verifyToken(token: string) {',
+        '  return jwt.verify(token, pubKey, {',
+        "    algorithms: ['RS256']",
+        '  });',
+        '}'
+      ]
+    });
+    if (session.execution === 'RUNNING') {
+      drawTypingIndicator(ctx, padX, curY + 4, innerW, S.typingIndicator('Codex'), t);
+    }
+  } else if (session.cardIndex === 1) {
+    // Card 2: User bubble -> Tool Call -> Tool Result -> AI Markdown Table -> Live Typing Indicator
+    curY = drawUserEventBubble(ctx, padX, curY, innerW, S.roleUser, '14:22', S.copyFull, S.c2User);
+    curY = drawToolCallBlock(ctx, padX, curY, innerW, '>_', S.toolCallBadge, S.c2ToolCall, '14:22');
+    curY = drawToolResultBlock(ctx, padX, curY, innerW, S.toolResultBadge, S.c2ToolResult, 'exit 0', '1.2s');
+    curY = drawAiMarkdownTableEvent(ctx, padX, curY, innerW, S, {
+      time: '14:23',
+      heading: S.c2AiHeading,
+      headers: S.c2TableHeaders,
+      rows: [
+        ['idx_token', '14.8ms', '1.1ms (-92%)'],
+        ['idx_sessions', '22.4ms', '1.6ms (-93%)']
+      ]
+    });
+    drawTypingIndicator(ctx, padX, curY + 4, innerW, S.typingIndicator('Claude'), t);
+  } else if (session.cardIndex === 2) {
+    // Card 3: User bubble -> Tool Call -> Tool Result -> AI Markdown Summary
+    curY = drawUserEventBubble(ctx, padX, curY, innerW, S.roleUser, '14:18', S.copyFull, S.c3User);
+    curY = drawToolCallBlock(ctx, padX, curY, innerW, '📄', S.toolCallBadge, S.c3ToolCall, '14:19');
+    curY = drawToolResultBlock(ctx, padX, curY, innerW, S.toolResultBadge, S.c3ToolResult, 'exit 0', '0.6s');
+    curY = drawAiMarkdownBulletsEvent(ctx, padX, curY, innerW, S, {
+      time: '14:19',
+      heading: S.c3AiHeading,
+      bullets: [S.c3AiBullet1, S.c3AiBullet2],
+      codeSnippet: 'export interface SessionItem { id: string; executionState: ExecutionState; }'
+    });
+  } else {
+    // Card 4: User bubble -> Tool Call -> Tool Result -> AI Markdown Summary
+    curY = drawUserEventBubble(ctx, padX, curY, innerW, S.roleUser, '13:55', S.copyFull, S.c4User);
+    curY = drawToolCallBlock(ctx, padX, curY, innerW, '>_', S.toolCallBadge, S.c4ToolCall, '13:56');
+    curY = drawToolResultBlock(ctx, padX, curY, innerW, S.toolResultBadge, S.c4ToolResult, 'exit 0', '0.9s');
+    curY = drawAiMarkdownBulletsEvent(ctx, padX, curY, innerW, S, {
+      time: '13:56',
+      heading: S.c4AiHeading,
+      bullets: [S.c4AiBullet1, S.c4AiBullet2],
+      codeSnippet: "socket.on('close', () => socket.removeAllListeners('message'));"
+    });
+  }
+
+  ctx.restore();
+
+  // ------------------------------------------
+  // 4. Bottom Controls (.card-bottom-controls: Full-width Interact button + Footer)
+  // ------------------------------------------
+  const ctrlY = y + h - 88;
+  ctx.strokeStyle = '#edf1ee';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padX, ctrlY);
+  ctx.lineTo(x + w - 16, ctrlY);
+  ctx.stroke();
+
+  // Full-width Interact button (.btn-interact-primary)
+  const btnY = ctrlY + 10;
+  const btnH = 34;
+  if (session.cardIndex === 0) {
+    uiTargets.card1Interact = { x: padX + innerW / 2, y: btnY + btnH / 2 };
+  }
+  const isInteractHover = (session.cardIndex === 0 && t >= 6.45 && t <= 6.85);
+  if (isWaiting) {
+    ctx.fillStyle = isInteractHover ? '#fde8bd' : '#fff5e0';
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = isInteractHover ? 2 : 1.5;
+    roundRect(ctx, padX, btnY, innerW, btnH, 8, true, true);
+    ctx.fillStyle = '#9a4d00';
+    ctx.font = '700 13px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`⚡ ${S.btnInteract}`, padX + innerW / 2, btnY + btnH / 2);
+  } else if (isRunning) {
+    ctx.fillStyle = '#edf6f9';
+    ctx.strokeStyle = '#bae6fd';
+    ctx.lineWidth = 1;
+    roundRect(ctx, padX, btnY, innerW, btnH, 8, true, true);
+    ctx.fillStyle = '#0369a1';
+    ctx.font = '600 13px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(S.btnInteract, padX + innerW / 2, btnY + btnH / 2);
+  } else {
+    ctx.fillStyle = '#e8f2ec';
+    ctx.strokeStyle = '#cce0d4';
+    ctx.lineWidth = 1;
+    roundRect(ctx, padX, btnY, innerW, btnH, 8, true, true);
+    ctx.fillStyle = '#1e523f';
+    ctx.font = '600 13px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(S.btnInteract, padX + innerW / 2, btnY + btnH / 2);
+  }
+
+  // Footer Row (.card-footer: left [✓ 标记已读], right [收纳])
+  const footY = btnY + btnH + 8;
+  const footBtnH = 26;
+
+  // Left: Mark Read
+  ctx.font = '500 11.5px "Segoe UI", sans-serif';
+  const mrW = Math.max(88, ctx.measureText(S.btnMarkRead).width + 20);
+  if (session.cardIndex === 2) {
+    uiTargets.card3MarkRead = { x: padX + mrW / 2, y: footY + footBtnH / 2 };
+  }
+  const mrHighlight = (session.cardIndex === 2 && t >= 10.65 && t <= 11.2);
+  ctx.fillStyle = mrHighlight ? '#e5f2eb' : '#f4f7f5';
+  ctx.strokeStyle = mrHighlight ? '#25634f' : '#e0e7e2';
+  ctx.lineWidth = mrHighlight ? 1.5 : 1;
+  roundRect(ctx, padX, footY, mrW, footBtnH, 6, true, true);
+  ctx.fillStyle = (isUnread || mrHighlight) ? '#25634f' : '#909a92';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(S.btnMarkRead, padX + mrW / 2, footY + footBtnH / 2);
+
+  // Right: Stow (收纳)
+  const stowW = Math.max(64, ctx.measureText(S.btnStow).width + 24);
+  const stowHighlight = (session.cardIndex === 3 && t >= 11.45 && t <= 12.1);
+  ctx.fillStyle = stowHighlight ? '#e5f2eb' : '#f4f7f5';
+  ctx.strokeStyle = stowHighlight ? '#25634f' : '#e0e7e2';
+  ctx.lineWidth = stowHighlight ? 1.5 : 1;
+  roundRect(ctx, x + w - 16 - stowW, footY, stowW, footBtnH, 6, true, true);
+  ctx.fillStyle = stowHighlight ? '#25634f' : '#606d64';
+  ctx.fillText(S.btnStow, x + w - 16 - stowW / 2, footY + footBtnH / 2);
+
+  ctx.restore();
+}
+
+// ==========================================
+// 8. AUTHENTIC EVENT STREAM COMPONENTS (src/SessionCard.tsx & ToolEventView.tsx)
+// ==========================================
+function drawUserEventBubble(ctx, x, y, w, roleLabel, timeStr, copyLabel, text) {
+  ctx.save();
+  // Meta row: 你  14:20   [复制全文]
+  ctx.font = '600 11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#606d64';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(roleLabel, x + 2, y + 8);
+  const rw = ctx.measureText(roleLabel).width;
+
+  ctx.font = '400 11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#849086';
+  ctx.fillText(timeStr, x + 2 + rw + 8, y + 8);
+
+  // Copy button pill
+  ctx.font = '500 10px "Segoe UI", sans-serif';
+  const cw = ctx.measureText(copyLabel).width + 12;
+  ctx.fillStyle = '#f4f7f5';
+  ctx.strokeStyle = '#dde5e0';
+  roundRect(ctx, x + w - cw, y, cw, 16, 4, true, true);
+  ctx.fillStyle = '#606d64';
+  ctx.textAlign = 'center';
+  ctx.fillText(copyLabel, x + w - cw / 2, y + 8);
+
+  // User gray bubble (#f0f4f1, border #dce5df)
+  const bubbleY = y + 20;
+  const bubbleH = 48;
+  ctx.fillStyle = '#f0f4f1';
+  ctx.strokeStyle = '#dce5df';
+  ctx.lineWidth = 1;
+  roundRect(ctx, x, bubbleY, w, bubbleH, 10, true, true);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '400 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  drawWrappedText(ctx, text, x + 12, bubbleY + 19, w - 24, 17, 2);
+
+  ctx.restore();
+  return bubbleY + bubbleH + 10;
+}
+
+function drawToolCallBlock(ctx, x, y, w, iconStr, badgeLabel, summaryText, timeStr) {
+  ctx.save();
+  const h = 32;
+  ctx.fillStyle = '#f7faf8';
+  ctx.strokeStyle = '#dce4e0';
+  ctx.lineWidth = 1;
+  roundRect(ctx, x, y, w, h, 8, true, true);
+
+  // Badge: [>_ 工具调用] or [📄 工具调用]
+  ctx.font = '600 11px "Segoe UI", sans-serif';
+  const badgeStr = `${iconStr} ${badgeLabel}`;
+  const bw = ctx.measureText(badgeStr).width + 14;
+  ctx.fillStyle = '#e3ece6';
+  roundRect(ctx, x + 8, y + 6, bw, 20, 5, true, false);
+  ctx.fillStyle = '#285943';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(badgeStr, x + 8 + bw / 2, y + 16);
+
+  // Summary text
+  ctx.textAlign = 'left';
+  ctx.font = '500 11.5px Consolas, "JetBrains Mono", monospace';
+  ctx.fillStyle = '#2c3d34';
+  ctx.fillText(truncateText(ctx, summaryText, w - bw - 68), x + 16 + bw, y + 16);
+
+  // Right time + chevron ▸
+  ctx.textAlign = 'right';
+  ctx.font = '400 10.5px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#849086';
+  ctx.fillText(`${timeStr}  ▸`, x + w - 10, y + 16);
+
+  ctx.restore();
+  return y + h + 8;
+}
+
+function drawToolResultBlock(ctx, x, y, w, badgeLabel, summaryText, exitPill, durPill) {
+  ctx.save();
+  const h = 32;
+  ctx.fillStyle = '#f7faf8';
+  ctx.strokeStyle = '#dce4e0';
+  ctx.lineWidth = 1;
+  roundRect(ctx, x, y, w, h, 8, true, true);
+
+  // Badge: [✓ 工具结果]
+  ctx.font = '600 11px "Segoe UI", sans-serif';
+  const badgeStr = `✓ ${badgeLabel}`;
+  const bw = ctx.measureText(badgeStr).width + 14;
+  ctx.fillStyle = '#e5f2eb';
+  roundRect(ctx, x + 8, y + 6, bw, 20, 5, true, false);
+  ctx.fillStyle = '#236c4b';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(badgeStr, x + 8 + bw / 2, y + 16);
+
+  // Summary
+  ctx.textAlign = 'left';
+  ctx.font = '400 11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#52635a';
+  ctx.fillText(truncateText(ctx, summaryText, w - bw - 106), x + 16 + bw, y + 16);
+
+  // Right pills: [exit 0] [0.4s] ▸
+  ctx.font = '600 10px Consolas, monospace';
+  const p1W = 44;
+  const p2W = 34;
+  ctx.fillStyle = '#e5f2eb';
+  roundRect(ctx, x + w - 24 - p2W - 4 - p1W, y + 7, p1W, 18, 4, true, false);
+  ctx.fillStyle = '#236c4b';
+  ctx.textAlign = 'center';
+  ctx.fillText(exitPill, x + w - 24 - p2W - 4 - p1W / 2, y + 16);
+
+  ctx.fillStyle = '#eef2ef';
+  roundRect(ctx, x + w - 24 - p2W, y + 7, p2W, 18, 4, true, false);
+  ctx.fillStyle = '#606d64';
+  ctx.fillText(durPill, x + w - 24 - p2W / 2, y + 16);
+
+  ctx.fillStyle = '#849086';
+  ctx.fillText('▸', x + w - 12, y + 16);
+
+  ctx.restore();
+  return y + h + 10;
+}
+
+function drawAiMetaHeader(ctx, x, y, w, S, timeStr) {
+  ctx.font = '600 11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#25634f';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(S.roleAi, x + 2, y + 8);
+  const rw = ctx.measureText(S.roleAi).width;
+
+  ctx.font = '400 11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#849086';
+  ctx.fillText(timeStr, x + 2 + rw + 8, y + 8);
+
+  ctx.font = '500 10px "Segoe UI", sans-serif';
+  const cw = ctx.measureText(S.copyFull).width + 12;
+  ctx.fillStyle = '#f4f7f5';
+  ctx.strokeStyle = '#dde5e0';
+  roundRect(ctx, x + w - cw, y, cw, 16, 4, true, true);
+  ctx.fillStyle = '#606d64';
+  ctx.textAlign = 'center';
+  ctx.fillText(S.copyFull, x + w - cw / 2, y + 8);
+  return y + 24;
+}
+
+function drawAiMarkdownCodeEvent(ctx, x, y, w, S, data) {
+  ctx.save();
+  let curY = drawAiMetaHeader(ctx, x, y, w, S, data.time);
+
+  // Heading
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '700 13px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText(data.heading.replace('### ', ''), x + 2, curY + 12);
+  curY += 22;
+
+  // Bullet
+  ctx.font = '400 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#2c3d34';
+  ctx.fillText(truncateText(ctx, data.bullet, w - 8), x + 2, curY + 12);
+  curY += 22;
+
+  // Markdown Code Block (.md-code-block)
+  const codeH = 26 + data.codeLines.length * 17 + 10;
+  ctx.fillStyle = '#f5f8f6';
+  ctx.strokeStyle = '#dce5df';
+  ctx.lineWidth = 1;
+  roundRect(ctx, x, curY, w, codeH, 8, true, true);
+
+  // Code header bar (#ebf1ed)
+  ctx.fillStyle = '#ebf1ed';
+  roundRect(ctx, x + 1, curY + 1, w - 2, 24, 7, true, false);
+  ctx.font = '600 10.5px Consolas, monospace';
+  ctx.fillStyle = '#52635a';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(data.lang, x + 10, curY + 13);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#25634f';
+  ctx.fillText(S.copyCode, x + w - 10, curY + 13);
+
+  // Code lines
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '400 11.5px Consolas, "JetBrains Mono", monospace';
+  ctx.fillStyle = '#1e2b24';
+  let lineY = curY + 42;
+  for (const line of data.codeLines) {
+    ctx.fillText(line, x + 10, lineY);
+    lineY += 17;
+  }
+
+  ctx.restore();
+  return curY + codeH + 8;
+}
+
+function drawAiMarkdownTableEvent(ctx, x, y, w, S, data) {
+  ctx.save();
+  let curY = drawAiMetaHeader(ctx, x, y, w, S, data.time);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '700 13px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText(data.heading.replace('### ', ''), x + 2, curY + 12);
+  curY += 20;
+
+  // Markdown Table (.md-table-wrap)
+  const rowH = 26;
+  const tableH = rowH * (data.rows.length + 1);
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#dce5df';
+  ctx.lineWidth = 1;
+  roundRect(ctx, x, curY, w, tableH, 7, true, true);
+
+  // Header bg
+  ctx.fillStyle = '#f0f5f2';
+  roundRect(ctx, x + 1, curY + 1, w - 2, rowH, 6, true, false);
+
+  const colW = w / 3;
+  ctx.font = '600 11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#2c3d34';
+  ctx.textBaseline = 'middle';
+  for (let c = 0; c < 3; c++) {
+    ctx.fillText(data.headers[c], x + c * colW + 10, curY + rowH / 2);
+  }
+
+  // Rows
+  ctx.font = '400 11px Consolas, "Segoe UI", monospace';
+  for (let r = 0; r < data.rows.length; r++) {
+    const ry = curY + (r + 1) * rowH;
+    ctx.strokeStyle = '#e5ece8';
+    ctx.beginPath();
+    ctx.moveTo(x, ry);
+    ctx.lineTo(x + w, ry);
+    ctx.stroke();
+
+    for (let c = 0; c < 3; c++) {
+      ctx.fillStyle = c === 2 ? '#236c4b' : '#1e2b24';
+      ctx.fillText(data.rows[r][c], x + c * colW + 10, ry + rowH / 2);
+    }
+  }
+
+  ctx.restore();
+  return curY + tableH + 8;
+}
+
+function drawAiMarkdownBulletsEvent(ctx, x, y, w, S, data) {
+  ctx.save();
+  let curY = drawAiMetaHeader(ctx, x, y, w, S, data.time);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '700 13px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText(data.heading.replace('### ', ''), x + 2, curY + 12);
+  curY += 22;
+
+  ctx.font = '400 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#2c3d34';
+  for (const b of data.bullets) {
+    curY = drawWrappedText(ctx, b, x + 2, curY + 12, w - 6, 17, 2) - 4;
+  }
+
+  if (data.codeSnippet) {
+    curY += 6;
+    ctx.fillStyle = '#f5f8f6';
+    ctx.strokeStyle = '#dce5df';
+    roundRect(ctx, x, curY, w, 34, 7, true, true);
+    ctx.font = '400 11px Consolas, monospace';
+    ctx.fillStyle = '#236c4b';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(truncateText(ctx, data.codeSnippet, w - 20), x + 10, curY + 17);
+    curY += 40;
+  }
+
+  ctx.restore();
+  return curY;
+}
+
+function drawTypingIndicator(ctx, x, y, w, label, t) {
+  ctx.save();
+  const h = 34;
+  ctx.fillStyle = '#f2f7f4';
+  ctx.strokeStyle = '#dbe6df';
+  ctx.lineWidth = 1;
+  roundRect(ctx, x, y, w, h, 8, true, true);
+
+  ctx.font = '500 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#4e6157';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + 12, y + h / 2);
+
+  // 3 Bouncing green dots (.session-typing-dots)
+  const dotsX = x + 12 + ctx.measureText(label).width + 12;
+  for (let i = 0; i < 3; i++) {
+    const phase = (t * 5 - i * 0.45);
+    const bounce = Math.sin(phase) > 0 ? Math.sin(phase) * 3 : 0;
+    const alpha = 0.4 + (Math.sin(phase) + 1) * 0.3;
+    ctx.fillStyle = `rgba(37, 99, 79, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(dotsX + i * 11, y + h / 2 - bounce, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ==========================================
+// 9. CHAPTER 2: REAL NEW SESSION MODAL (src/NewSessionModal.tsx)
+// ==========================================
+function drawNewSessionModal(t, S) {
+  ctx.save();
+  const enterP = easeOutCubic(clamp((t - 3.5) / 0.22, 0, 1));
+  const exitP = clamp((6.2 - t) / 0.2, 0, 1);
+  const p = Math.min(enterP, exitP);
+
+  ctx.fillStyle = `rgba(18, 28, 22, ${0.42 * p})`;
+  ctx.fillRect(0, 0, 1920, 995);
+
+  ctx.globalAlpha = p;
+  const mw = 680;
+  const mh = 520;
+  const mx = (1920 - mw) / 2;
+  const baseMy = 200;
+  const slideY = (1 - p) * 20;
+  const my = baseMy + slideY;
+
+  drawCleanShadowRect(ctx, mx, my, mw, mh, 16, true, true, 'rgba(15, 23, 42, 0.28)', 36, 12);
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#d5e0d9';
+  ctx.lineWidth = 1;
+  roundRect(ctx, mx, my, mw, mh, 16, true, true);
+
+  // Modal Header
+  ctx.font = '700 18px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(S.newModalTitle, mx + 24, my + 30);
+
+  ctx.fillStyle = '#f2f5f3';
+  roundRect(ctx, mx + mw - 52, my + 16, 28, 28, 7, true, false);
+  ctx.font = '600 13px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#606d64';
+  ctx.textAlign = 'center';
+  ctx.fillText('✕', mx + mw - 38, my + 30);
+
+  ctx.strokeStyle = '#e5ece8';
+  ctx.beginPath();
+  ctx.moveTo(mx, my + 56);
+  ctx.lineTo(mx + mw, my + 56);
+  ctx.stroke();
+
+  // 1. Agent Selector Tabs
+  let cy = my + 74;
+  ctx.textAlign = 'left';
+  ctx.font = '600 12.5px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#2c3d34';
+  ctx.fillText(S.newModalAgentLabel, mx + 24, cy);
+
+  cy += 14;
+  const tabW = (mw - 48 - 20) / 3;
+  const agents = [
+    { id: 'codex', name: 'Codex' },
+    { id: 'claude', name: 'Claude' },
+    { id: 'antigravity', name: 'Antigravity' }
+  ];
+  agents.forEach((ag, i) => {
+    const tx = mx + 24 + i * (tabW + 10);
+    const active = ag.id === 'claude';
+    ctx.fillStyle = active ? '#eef5f1' : '#f8faf9';
+    ctx.strokeStyle = active ? '#25634f' : '#dce5df';
+    ctx.lineWidth = active ? 1.8 : 1;
+    roundRect(ctx, tx, cy, tabW, 42, 10, true, true);
+
+    drawAgentProviderBadge(ctx, ag.id, tx + 14, cy + 8, 26, true);
+    ctx.font = '600 13.5px "Segoe UI", sans-serif';
+    ctx.fillStyle = active ? '#1e523f' : '#2c3d34';
+    ctx.textAlign = 'left';
+    ctx.fillText(ag.name, tx + 48, cy + 21);
+  });
+
+  // 2. Working Directory Selector
+  cy += 62;
+  ctx.font = '600 12.5px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#2c3d34';
+  ctx.fillText(S.newModalDirLabel, mx + 24, cy);
+
+  cy += 12;
+  const pasteW = 108;
+  const selW = mw - 48 - pasteW - 10;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#cedbd3';
+  ctx.lineWidth = 1;
+  roundRect(ctx, mx + 24, cy, selW, 38, 8, true, true);
+  ctx.font = '500 12.5px Consolas, "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText(S.newModalDirVal, mx + 36, cy + 19);
+
+  ctx.fillStyle = '#f4f7f5';
+  ctx.strokeStyle = '#cedbd3';
+  roundRect(ctx, mx + 24 + selW + 10, cy, pasteW, 38, 8, true, true);
+  ctx.font = '600 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#2c3d34';
+  ctx.textAlign = 'center';
+  ctx.fillText(S.newModalPasteBtn, mx + 24 + selW + 10 + pasteW / 2, cy + 19);
+
+  // 3. Initial Prompt with ChatComposer (Supports attachments & voice)
+  cy += 56;
+  ctx.textAlign = 'left';
+  ctx.font = '600 12.5px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#2c3d34';
+  ctx.fillText(S.newModalPromptLabel, mx + 24, cy);
+
+  cy += 12;
+  uiTargets.newModalPrompt = { x: mx + 160, y: (cy - slideY) + 24 };
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#25634f';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, mx + 24, cy, mw - 48, 84, 10, true, true);
+
+  const typeRatio = clamp((t - 4.1) / 1.2, 0, 1);
+  const typedLen = Math.floor(S.newModalPromptText.length * typeRatio);
+  const typedStr = S.newModalPromptText.slice(0, typedLen) + (typeRatio < 1 ? '▋' : '');
+  ctx.font = '400 13px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText(typedStr, mx + 36, cy + 24);
+
+  // Composer toolbar inside prompt area: [📎 Attach] [🎙️ Voice]
+  ctx.fillStyle = '#f2f6f3';
+  ctx.strokeStyle = '#dce5df';
+  ctx.lineWidth = 1;
+  roundRect(ctx, mx + 36, cy + 48, 104, 26, 6, true, true);
+  ctx.font = '500 11.5px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#2c3d34';
+  ctx.textAlign = 'center';
+  ctx.fillText(S.intAttachBtn, mx + 36 + 52, cy + 61);
+
+  ctx.fillStyle = '#f2f6f3';
+  roundRect(ctx, mx + 148, cy + 48, 104, 26, 6, true, true);
+  ctx.fillStyle = '#2c3d34';
+  ctx.fillText(S.intVoiceBtn, mx + 148 + 52, cy + 61);
+
+  // 4. Two-column row: Model Selection & Session Title
+  cy += 102;
+  const colW = (mw - 48 - 16) / 2;
+  ctx.textAlign = 'left';
+  ctx.font = '600 12.5px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#2c3d34';
+  ctx.fillText(S.newModalModelLabel, mx + 24, cy);
+  ctx.fillText(S.newModalTitleLabel, mx + 24 + colW + 16, cy);
+
+  cy += 12;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#cedbd3';
+  roundRect(ctx, mx + 24, cy, colW, 36, 8, true, true);
+  ctx.font = '500 12.5px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText(S.newModalModelVal, mx + 36, cy + 18);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#cedbd3';
+  roundRect(ctx, mx + 24 + colW + 16, cy, colW, 36, 8, true, true);
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText(S.newModalTitleVal, mx + 36 + colW + 16, cy + 18);
+
+  // 5. Footer Buttons: [Cancel] [Create & Start]
+  const fy = my + mh - 52;
+  ctx.fillStyle = '#f4f7f5';
+  ctx.strokeStyle = '#cedbd3';
+  roundRect(ctx, mx + mw - 230, fy, 84, 36, 8, true, true);
+  ctx.font = '600 13px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#606d64';
+  ctx.textAlign = 'center';
+  ctx.fillText(S.newModalCancel, mx + mw - 188, fy + 18);
+
+  uiTargets.newModalSubmit = { x: mx + mw - 80, y: (fy - slideY) + 18 };
+  const isSubmitClick = t >= 5.75 && t <= 6.15;
+  ctx.fillStyle = isSubmitClick ? '#1d4f3f' : '#25634f';
+  roundRect(ctx, mx + mw - 136, fy, 112, 36, 8, true, false);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(S.newModalSubmit, mx + mw - 80, fy + 18);
+
+  ctx.restore();
+}
+
+// ==========================================
+// 10. CHAPTER 3: REAL EXPANDED SESSION & INTERACTION PANEL (src/SessionCard.tsx + InteractionPanel.tsx)
+// ==========================================
+function drawExpandedSessionModal(t, isApproved, S) {
+  ctx.save();
+  const enterP = easeOutCubic(clamp((t - 6.7) / 0.22, 0, 1));
+  const exitP = clamp((10.1 - t) / 0.2, 0, 1);
+  const p = Math.min(enterP, exitP);
+
+  ctx.fillStyle = `rgba(18, 28, 22, ${0.46 * p})`;
+  ctx.fillRect(0, 0, 1920, 995);
+
+  ctx.globalAlpha = p;
+  const mw = 920;
+  const mh = 660;
+  const mx = (1920 - mw) / 2;
+  const baseMy = 148;
+  const slideY = (1 - p) * 18;
+  const my = baseMy + slideY;
+
+  drawCleanShadowRect(ctx, mx, my, mw, mh, 16, true, true, 'rgba(15, 23, 42, 0.3)', 40, 12);
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#d5e0d9';
+  ctx.lineWidth = 1;
+  roundRect(ctx, mx, my, mw, mh, 16, true, true);
+
+  // 1. Expanded Session Header (matches SessionCard dialog)
+  const padX = mx + 24;
+  const innerW = mw - 48;
+  drawAgentProviderBadge(ctx, 'codex', padX, my + 18, 36, true);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '700 16px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText(S.c1Title, padX + 48, my + 34);
+
+  ctx.font = '400 12.5px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#606d64';
+  ctx.fillText('Codex · 0196fb2a', padX + 48, my + 52);
+
+  // Project badge in modal header
+  ctx.fillStyle = '#edf3ef';
+  ctx.strokeStyle = '#d5e2da';
+  roundRect(ctx, padX + 162, my + 39, 104, 18, 5, true, true);
+  ctx.font = '500 11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#2d4c3e';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('📁 agent-board', padX + 170, my + 48);
+
+  // Status badge on right of header
+  const stColor = isApproved ? '#0284c7' : '#b85c00';
+  const stText = isApproved ? S.stateRunning : S.stateWaitingApproval;
+  ctx.fillStyle = stColor;
+  ctx.beginPath();
+  ctx.arc(mx + mw - 160, my + 34, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.font = '600 13px "Segoe UI", sans-serif';
+  ctx.fillText(stText, mx + mw - 150, my + 34);
+
+  // Close button ✕
+  ctx.fillStyle = '#f2f5f3';
+  roundRect(ctx, mx + mw - 52, my + 18, 28, 28, 7, true, false);
+  ctx.fillStyle = '#606d64';
+  ctx.textAlign = 'center';
+  ctx.fillText('✕', mx + mw - 38, my + 32);
+
+  // 2. Conversation History inside Modal (.session-events)
+  let curY = my + 70;
+  curY = drawUserEventBubble(ctx, padX, curY, innerW, S.roleUser, '14:20', S.copyFull, S.c1User);
+  curY = drawToolCallBlock(ctx, padX, curY, innerW, '📄', S.toolCallBadge, S.c1ToolCall, '14:21');
+  curY = drawAiMarkdownCodeEvent(ctx, padX, curY, innerW, S, {
+    time: '14:21',
+    heading: S.c1AiHeading,
+    bullet: S.c1AiBullet,
+    lang: 'typescript',
+    codeLines: [
+      'export async function verifyToken(token: string) {',
+      "  return jwt.verify(token, pubKey, { algorithms: ['RS256'] });",
+      '}'
+    ]
+  });
+
+  // 3. Authentic <InteractionPanel> (src/InteractionPanel.tsx)
+  const ipY = curY + 6;
+  const ipH = 246;
+  ctx.fillStyle = '#f8faf9';
+  ctx.strokeStyle = isApproved ? '#cce0d4' : '#f59e0b';
+  ctx.lineWidth = isApproved ? 1 : 1.5;
+  roundRect(ctx, padX, ipY, innerW, ipH, 12, true, true);
+
+  // InteractionPanel Header: 等待确认 / 已连接原会话 + 原客户端保持打开即可
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 14px "Segoe UI", sans-serif';
+  ctx.fillStyle = isApproved ? '#25634f' : '#b85c00';
+  ctx.fillText(isApproved ? S.intConnectedTitle : S.intWaitingTitle, padX + 16, ipY + 22);
+
+  ctx.textAlign = 'right';
+  ctx.font = '500 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#606d64';
+  ctx.fillText(S.intKeepOpenNote, padX + innerW - 16, ipY + 22);
+
+  ctx.textAlign = 'left';
+  ctx.font = '400 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#52635a';
+  ctx.fillText(isApproved ? S.intConnectedHint : S.intPendingHint, padX + 16, ipY + 42);
+
+  // Approval Card (.interaction-approval-card)
+  const appY = ipY + 56;
+  const appH = 54;
+  ctx.fillStyle = isApproved ? '#edf7f1' : '#fff8eb';
+  ctx.strokeStyle = isApproved ? '#b7e0c8' : '#f5d08a';
+  ctx.lineWidth = 1;
+  roundRect(ctx, padX + 16, appY, innerW - 32, appH, 9, true, true);
+
+  // [Deny Once] & [✓ Allow Once] buttons
+  const allowW = 114;
+  const denyW = 100;
+  const btnRight = padX + innerW - 28;
+
+  ctx.font = '600 12.5px Consolas, "Segoe UI", sans-serif';
+  ctx.fillStyle = isApproved ? '#1e523f' : '#7c3a00';
+  ctx.fillText(truncateText(ctx, S.intApprovalReqTitle, innerW - allowW - denyW - 86), padX + 28, appY + 27);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#d3ddd6';
+  roundRect(ctx, btnRight - allowW - 10 - denyW, appY + 11, denyW, 32, 7, true, true);
+  ctx.font = '600 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#606d64';
+  ctx.textAlign = 'center';
+  ctx.fillText(S.intBtnDeny, btnRight - allowW - 10 - denyW / 2, appY + 27);
+
+  uiTargets.intAllow = { x: btnRight - allowW / 2, y: (appY - slideY) + 11 + 16 };
+  const allowPulse = (t >= 8.1 && t <= 8.65);
+  ctx.fillStyle = isApproved ? '#1d4f3f' : (allowPulse ? '#1d4f3f' : '#25634f');
+  roundRect(ctx, btnRight - allowW, appY + 11, allowW, 32, 7, true, false);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(S.intBtnAllow, btnRight - allowW / 2, appY + 27);
+
+  // 4. Authentic <ChatComposer> inside InteractionPanel (src/ChatComposer.tsx)
+  const compY = appY + appH + 12;
+  ctx.textAlign = 'left';
+  ctx.font = '600 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#2c3d34';
+  ctx.fillText(S.intContinueLabel, padX + 16, compY + 8);
+
+  const boxY = compY + 20;
+  const boxH = 88;
+  const isSendActive = t >= 9.2 && t <= 9.65;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = isSendActive ? '#25634f' : '#cedbd3';
+  ctx.lineWidth = isSendActive ? 1.5 : 1;
+  roundRect(ctx, padX + 16, boxY, innerW - 32, boxH, 9, true, true);
+
+  // Prompt text + attachment chip
+  ctx.font = '400 12.5px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#1e2b24';
+  ctx.fillText(truncateText(ctx, S.intPromptText, innerW - 64), padX + 28, boxY + 22);
+
+  // Attachment chip (.composer-attachment-chip): [📎 auth-spec.md  ✕]
+  ctx.fillStyle = '#edf3ef';
+  ctx.strokeStyle = '#cbe0d3';
+  ctx.lineWidth = 1;
+  roundRect(ctx, padX + 28, boxY + 36, 138, 22, 6, true, true);
+  ctx.font = '500 11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#25634f';
+  ctx.fillText('📎 auth-spec.md   ✕', padX + 36, boxY + 47);
+
+  // Bottom bar inside composer: Left [📎 Attach File] [🎙️ Voice Input] + Hint | Right [Stop Turn] [Send]
+  const barY = boxY + 62;
+  ctx.fillStyle = '#f2f6f3';
+  ctx.strokeStyle = '#dce5df';
+  roundRect(ctx, padX + 28, barY, 98, 22, 5, true, true);
+  ctx.font = '500 11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#2c3d34';
+  ctx.textAlign = 'center';
+  ctx.fillText(S.intAttachBtn, padX + 28 + 49, barY + 11);
+
+  ctx.fillStyle = '#f2f6f3';
+  roundRect(ctx, padX + 134, barY, 98, 22, 5, true, true);
+  ctx.fillStyle = '#2c3d34';
+  ctx.fillText(S.intVoiceBtn, padX + 134 + 49, barY + 11);
+
+  // Right [Stop Turn] & [Send] buttons
+  const sendW = 76;
+  const stopW = 86;
+
+  ctx.textAlign = 'left';
+  ctx.font = '400 11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#849086';
+  const hintMaxW = (btnRight - sendW - 8 - stopW) - (padX + 244) - 12;
+  ctx.fillText(truncateText(ctx, S.intShortcutHint, hintMaxW), padX + 244, barY + 11);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#d3ddd6';
+  roundRect(ctx, btnRight - sendW - 8 - stopW, barY - 2, stopW, 24, 6, true, true);
+  ctx.font = '600 11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#606d64';
+  ctx.textAlign = 'center';
+  ctx.fillText(S.intBtnStop, btnRight - sendW - 8 - stopW / 2, barY + 10);
+
+  uiTargets.intSend = { x: btnRight - sendW / 2, y: (barY - slideY) - 2 + 12 };
+  ctx.fillStyle = isSendActive ? '#1d4f3f' : '#25634f';
+  roundRect(ctx, btnRight - sendW, barY - 2, sendW, 24, 6, true, false);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(t >= 9.4 ? `✓ ${S.intBtnSend}` : S.intBtnSend, btnRight - sendW / 2, barY + 10);
+
+  // 5. Modal Footer: [✓ Mark Read] [Stow]
+  const mfY = my + mh - 40;
+  ctx.fillStyle = '#f4f7f5';
+  ctx.strokeStyle = '#dce5df';
+  roundRect(ctx, padX, mfY, 104, 28, 6, true, true);
+  ctx.font = '500 12px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#25634f';
+  ctx.textAlign = 'center';
+  ctx.fillText(S.btnMarkRead, padX + 52, mfY + 14);
+
+  ctx.fillStyle = '#f4f7f5';
+  roundRect(ctx, mx + mw - 24 - 76, mfY, 76, 28, 6, true, true);
+  ctx.fillStyle = '#606d64';
+  ctx.fillText(S.btnStow, mx + mw - 24 - 38, mfY + 14);
+
+  ctx.restore();
+}
+
+// ==========================================
+// 11. MOUSE POINTER & CLICK ORCHESTRATION
+// ==========================================
+function drawBoardMouse(t) {
+  if (t > 12.9) return;
+
+  const waypoints = [
+    { t: 0.0, x: 960, y: 520 },
+    // Chapter 2: Hover & click [+ Claude] button in board header
+    { t: 2.7, x: 960, y: 520 },
+    { t: 3.3, x: uiTargets.quickClaude.x, y: uiTargets.quickClaude.y },
+    { t: 3.5, x: uiTargets.quickClaude.x, y: uiTargets.quickClaude.y, click: true },
+    { t: 3.68, x: uiTargets.quickClaude.x, y: uiTargets.quickClaude.y },
+    // Inside NewSessionModal: click prompt text line, then click [Create & Start]
+    { t: 4.0, x: uiTargets.newModalPrompt.x, y: uiTargets.newModalPrompt.y },
+    { t: 4.1, x: uiTargets.newModalPrompt.x, y: uiTargets.newModalPrompt.y, click: true },
+    { t: 5.3, x: uiTargets.newModalPrompt.x, y: uiTargets.newModalPrompt.y },
+    { t: 5.75, x: uiTargets.newModalSubmit.x, y: uiTargets.newModalSubmit.y },
+    { t: 5.9, x: uiTargets.newModalSubmit.x, y: uiTargets.newModalSubmit.y, click: true },
+    { t: 6.1, x: uiTargets.newModalSubmit.x, y: uiTargets.newModalSubmit.y },
+    // Chapter 3: Move to Card 1 [⚡ Interact] button, hover & click
+    { t: 6.55, x: uiTargets.card1Interact.x, y: uiTargets.card1Interact.y },
+    { t: 6.7, x: uiTargets.card1Interact.x, y: uiTargets.card1Interact.y, click: true },
+    { t: 6.88, x: uiTargets.card1Interact.x, y: uiTargets.card1Interact.y },
+    // Inside Expanded Session Modal: poise on [✓ Allow Once], click at 8.4s
+    { t: 7.5, x: uiTargets.intAllow.x, y: uiTargets.intAllow.y },
+    { t: 8.4, x: uiTargets.intAllow.x, y: uiTargets.intAllow.y, click: true },
+    { t: 8.65, x: uiTargets.intAllow.x, y: uiTargets.intAllow.y },
+    // Move to [Send] button in ChatComposer, click at 9.4s
+    { t: 9.2, x: uiTargets.intSend.x, y: uiTargets.intSend.y },
+    { t: 9.4, x: uiTargets.intSend.x, y: uiTargets.intSend.y, click: true },
+    { t: 9.85, x: uiTargets.intSend.x, y: uiTargets.intSend.y },
+    // Chapter 4: Click [✓ Mark Read] on Card 3, then [Stow] on Card 4
+    { t: 10.7, x: uiTargets.card3MarkRead.x, y: uiTargets.card3MarkRead.y },
+    { t: 10.9, x: uiTargets.card3MarkRead.x, y: uiTargets.card3MarkRead.y, click: true },
+    { t: 11.15, x: uiTargets.card3MarkRead.x, y: uiTargets.card3MarkRead.y },
+    { t: 11.55, x: uiTargets.card4Stow.x, y: uiTargets.card4Stow.y },
+    { t: 11.7, x: uiTargets.card4Stow.x, y: uiTargets.card4Stow.y, click: true },
+    { t: 12.15, x: uiTargets.card4Stow.x, y: uiTargets.card4Stow.y },
+    { t: 12.8, x: 1350, y: 880 }
+  ];
+
+  let p0 = waypoints[0], p1 = waypoints[waypoints.length - 1];
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    if (t >= waypoints[i].t && t <= waypoints[i + 1].t) {
+      p0 = waypoints[i];
+      p1 = waypoints[i + 1];
+      break;
+    }
+  }
+
+  const segDur = Math.max(0.001, p1.t - p0.t);
+  const ratio = easeInOutQuad(clamp((t - p0.t) / segDur, 0, 1));
+  const mx = p0.x + (p1.x - p0.x) * ratio;
+  const my = p0.y + (p1.y - p0.y) * ratio;
+
+  // Click ripple
+  for (const wp of waypoints) {
+    if (wp.click && t >= wp.t && t <= wp.t + 0.35) {
+      const rp = (t - wp.t) / 0.35;
+      ctx.save();
+      ctx.strokeStyle = `rgba(37, 99, 79, ${1 - rp})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(wp.x, wp.y, 6 + rp * 26, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  ctx.save();
+  ctx.translate(mx, my);
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 2;
+  ctx.fillStyle = '#1e2b24';
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 19);
+  ctx.lineTo(4.8, 14.8);
+  ctx.lineTo(8.8, 22.5);
+  ctx.lineTo(11.8, 21);
+  ctx.lineTo(7.8, 13.2);
+  ctx.lineTo(13.8, 13.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ==========================================
+// 12. SUBTITLES & OPEN SOURCE OUTRO
+// ==========================================
+function drawBoardFooterSubtitle(t, S) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
+  ctx.fillRect(0, 995, 1920, 85);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 995);
+  ctx.lineTo(1920, 995);
+  ctx.stroke();
+
+  let activeSubtitle = S.subtitles[S.subtitles.length - 1];
+  for (const s of S.subtitles) {
+    if (t < s.tEnd) {
+      activeSubtitle = s;
+      break;
+    }
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '700 16px "Plus Jakarta Sans", "Segoe UI", sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(activeSubtitle.text, 960, 1030);
+
+  ctx.font = '500 13px "JetBrains Mono", "Segoe UI", monospace';
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText(activeSubtitle.sub, 960, 1058);
+
+  ctx.restore();
+}
+
+function drawOpenSourceOutro(st, S) {
+  const p = clamp(st / 0.45, 0, 1);
+  ctx.save();
+  ctx.fillStyle = `rgba(15, 23, 42, ${p * 0.95})`;
+  ctx.fillRect(0, 0, 1920, 995);
+
+  ctx.globalAlpha = p;
+  // Draw 3 Agent Logos at top of outro
+  drawAgentProviderBadge(ctx, 'codex', 960 - 76, 270, 44, true);
+  drawAgentProviderBadge(ctx, 'claude', 960 - 22, 270, 44, true);
+  drawAgentProviderBadge(ctx, 'antigravity', 960 + 32, 270, 44, true);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '800 44px "Plus Jakarta Sans", "Segoe UI", sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(S.outroTitle, 960, 385);
+
+  ctx.font = '500 18px "JetBrains Mono", "Segoe UI", monospace';
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText(S.outroSubtitle, 960, 435);
+
+  // Feature Pill Badge
+  ctx.font = '600 14px "JetBrains Mono", "Segoe UI", monospace';
+  const badgeW = Math.max(460, ctx.measureText(S.outroBadge).width + 36);
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+  ctx.lineWidth = 1;
+  roundRect(ctx, 960 - badgeW / 2, 466, badgeW, 38, 999, true, true);
+  ctx.fillStyle = '#e0f2fe';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(S.outroBadge, 960, 485);
+
+  // Command Box
+  ctx.fillStyle = 'rgba(30, 41, 59, 0.92)';
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.45)';
+  ctx.lineWidth = 1;
+  roundRect(ctx, 960 - 320, 524, 640, 56, 10, true, true);
+
+  ctx.font = '600 16px "JetBrains Mono", Consolas, monospace';
+  ctx.fillStyle = '#10b981';
+  ctx.fillText(S.outroCommand, 960, 552);
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '400 13.5px "JetBrains Mono", "Segoe UI", monospace';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText(S.outroFootnote, 960, 626);
+  ctx.restore();
+}
+
+// ==========================================
+// 13. TIMELINE TICK, EXPORT & UI LISTENERS
+// ==========================================
+let lastSoundCheck = -1;
+
+function updateUIStrings() {
+  const S = getStrings();
+  document.title = S.pageTitle;
+  uiBrandTitle.textContent = S.brandTitle;
+  uiBrandBadge.textContent = S.brandBadge;
+  playBtn.textContent = isPlaying ? S.pause : S.play;
+  restartBtn.textContent = S.restart;
+  soundBtn.textContent = audioEnabled ? S.soundOn : S.soundOff;
+  snapshotBtn.textContent = S.snapshot;
+  exportBtn.textContent = S.exportVideo;
+  renderStatus.textContent = S.statusReady(FPS, TOTAL_DURATION);
+
+  chapterBar.innerHTML = '';
+  S.chapters.forEach((ch) => {
+    const pill = document.createElement('div');
+    pill.className = 'chapter-pill';
+    pill.dataset.time = ch.t;
+    pill.innerHTML = `<span class="dot"></span><span>${ch.label}</span>`;
+    pill.addEventListener('click', () => seekTo(ch.t));
+    chapterBar.appendChild(pill);
+  });
+}
+
+function updateChapterActive(t) {
+  const S = getStrings();
+  const pills = chapterBar.querySelectorAll('.chapter-pill');
+  let activeIdx = 0;
+  for (let i = 0; i < S.chapters.length; i++) {
+    if (t >= S.chapters[i].t) activeIdx = i;
+  }
+  pills.forEach((p, idx) => {
+    if (idx === activeIdx) p.classList.add('active');
+    else p.classList.remove('active');
+  });
+}
+
+function seekTo(t) {
+  currentFrame = Math.round(t * FPS);
+  renderFrame(t);
+  updateChapterActive(t);
+  const secStr = Math.floor(t).toString().padStart(2, '0');
+  const msStr = Math.floor((t % 1) * 100).toString().padStart(2, '0');
+  timeText.textContent = `00:${secStr}.${msStr} / 00:15.00`;
+  timelineProgress.style.width = `${(t / TOTAL_DURATION) * 100}%`;
+}
+
+function tick(timestamp) {
+  if (isPlaying) {
+    if (!lastTimestamp) lastTimestamp = timestamp;
+    lastTimestamp = timestamp;
+    currentFrame += playbackSpeed;
+    if (currentFrame >= TOTAL_FRAMES) currentFrame = 0;
+  } else {
+    lastTimestamp = 0;
+  }
+
+  const t = currentFrame / FPS;
+  renderFrame(t);
+  updateChapterActive(t);
+
+  const curSec10 = Math.floor(t * 10);
+  if (curSec10 !== lastSoundCheck) {
+    lastSoundCheck = curSec10;
+    if (curSec10 === 14) playSound('alert');
+    else if (curSec10 === 35) playSound('click');
+    else if (curSec10 === 41) playSound('click');
+    else if (curSec10 === 59) playSound('approve');
+    else if (curSec10 === 67) playSound('click');
+    else if (curSec10 === 84) playSound('approve');
+    else if (curSec10 === 94) playSound('click');
+    else if (curSec10 === 109) playSound('click');
+    else if (curSec10 === 117) playSound('archive');
+  }
+
+  const progressPercent = (currentFrame / TOTAL_FRAMES) * 100;
+  timelineProgress.style.width = `${progressPercent}%`;
+  const secStr = Math.floor(t).toString().padStart(2, '0');
+  const msStr = Math.floor((t % 1) * 100).toString().padStart(2, '0');
+  timeText.textContent = `00:${secStr}.${msStr} / 00:15.00`;
+
+  if (isPlaying) {
+    animationId = requestAnimationFrame(tick);
+  }
+}
+
+function takeSnapshot() {
+  const t = currentFrame / FPS;
+  const link = document.createElement('a');
+  link.download = `agent-board-showcase-${currentLocale}-${t.toFixed(1)}s.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+async function exportVideo() {
+  if (isRecording) return;
+  const S = getStrings();
+  isRecording = true;
+  isPlaying = false;
+  cancelAnimationFrame(animationId);
+  exportBtn.disabled = true;
+  exportBtn.textContent = S.exportingVideo;
+  renderStatus.textContent = S.statusRecording;
+
+  const stream = canvas.captureStream(FPS);
+  let options = { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 12000000 };
+  if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+    options = { mimeType: 'video/webm' };
+  }
+
+  const recorder = new MediaRecorder(stream, options);
+  const chunks = [];
+  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `agent-board-showcase-${currentLocale}.webm`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    exportBtn.disabled = false;
+    exportBtn.textContent = S.exportVideo;
+    renderStatus.textContent = S.statusComplete;
+    isRecording = false;
+    isPlaying = true;
+    currentFrame = 0;
+    animationId = requestAnimationFrame(tick);
+  };
+
+  recorder.start();
+  for (let f = 0; f < TOTAL_FRAMES; f++) {
+    currentFrame = f;
+    renderFrame(f / FPS);
+    const pct = Math.floor((f / TOTAL_FRAMES) * 100);
+    renderStatus.textContent = `STATUS: RENDERING ${pct}% [${f}/${TOTAL_FRAMES}]`;
+    await new Promise(r => setTimeout(r, 1000 / FPS));
+  }
+  recorder.stop();
+}
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const lang = btn.dataset.lang;
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentLocale = lang;
+    localStorage.setItem('agent_board_promo_lang', lang);
+    updateUIStrings();
+    renderFrame(currentFrame / FPS);
+  });
+});
+
+document.querySelectorAll('.lang-btn').forEach(b => {
+  if (b.dataset.lang === currentLocale) b.classList.add('active');
+  else b.classList.remove('active');
+});
+
+playBtn.addEventListener('click', () => {
+  const S = getStrings();
+  isPlaying = !isPlaying;
+  playBtn.textContent = isPlaying ? S.pause : S.play;
+  if (isPlaying) {
+    getAudioContext();
+    lastTimestamp = performance.now();
+    animationId = requestAnimationFrame(tick);
+  }
+});
+
+restartBtn.addEventListener('click', () => {
+  const S = getStrings();
+  currentFrame = 0;
+  isPlaying = true;
+  playBtn.textContent = S.pause;
+  getAudioContext();
+  if (animationId) cancelAnimationFrame(animationId);
+  lastTimestamp = performance.now();
+  animationId = requestAnimationFrame(tick);
+});
+
+soundBtn.addEventListener('click', () => {
+  const S = getStrings();
+  audioEnabled = !audioEnabled;
+  soundBtn.textContent = audioEnabled ? S.soundOn : S.soundOff;
+  if (audioEnabled) getAudioContext();
+});
+
+speedBtn.addEventListener('click', () => {
+  if (playbackSpeed === 1.0) playbackSpeed = 1.5;
+  else if (playbackSpeed === 1.5) playbackSpeed = 2.0;
+  else if (playbackSpeed === 2.0) playbackSpeed = 0.5;
+  else playbackSpeed = 1.0;
+  speedBtn.textContent = `${playbackSpeed.toFixed(1)}x`;
+});
+
+snapshotBtn.addEventListener('click', takeSnapshot);
+exportBtn.addEventListener('click', exportVideo);
+
+timeline.addEventListener('click', (e) => {
+  const rect = timeline.getBoundingClientRect();
+  const ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+  seekTo(ratio * TOTAL_DURATION);
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.code === 'Space') { e.preventDefault(); playBtn.click(); }
+  else if (e.code === 'KeyR') restartBtn.click();
+  else if (e.code === 'KeyM') soundBtn.click();
+  else if (e.code === 'KeyS') takeSnapshot();
+  else if (e.code === 'Digit1') document.querySelector('.lang-btn[data-lang="en-US"]')?.click();
+  else if (e.code === 'Digit2') document.querySelector('.lang-btn[data-lang="zh-CN"]')?.click();
+  else if (e.code === 'Digit3') document.querySelector('.lang-btn[data-lang="zh-TW"]')?.click();
+  else if (e.code === 'Digit4') document.querySelector('.lang-btn[data-lang="ja-JP"]')?.click();
+  else if (e.code === 'ArrowLeft') seekTo(Math.max(0, (currentFrame / FPS) - 1.0));
+  else if (e.code === 'ArrowRight') seekTo(Math.min(TOTAL_DURATION, (currentFrame / FPS) + 1.0));
+});
+
+updateUIStrings();
+
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.has('t')) {
+  const seekT = parseFloat(urlParams.get('t'));
+  isPlaying = false;
+  playBtn.textContent = getStrings().play;
+  seekTo(seekT);
+} else {
+  animationId = requestAnimationFrame(tick);
+}
+</script>
+
+</body>
+</html>

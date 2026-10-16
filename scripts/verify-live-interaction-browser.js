@@ -1,0 +1,33 @@
+async page => {
+  const check = (value, message) => { if (!value) throw new Error(message); };
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('http://127.0.0.1:4321');
+  await page.locator('article').first().getByRole('button', { name: '交互', exact: true }).click();
+  const dialog = page.locator('dialog[open]');
+  await dialog.getByText('已连接原会话', { exact: true }).waitFor();
+  check(await dialog.getByRole('checkbox').count() === 0, 'No handoff checkbox');
+  check(!(await dialog.innerText()).includes('退出原客户端'), 'No exit instruction');
+  check(await dialog.getByRole('button', { name: '停止本次' }).count() === 0, 'Unsupported Claude stop absent');
+  const input = dialog.getByRole('textbox', { name: '发送给 AI 的消息' });
+  await input.fill('Synthetic browser channel message');
+  await input.press('Control+Enter');
+  await dialog.getByText('等待 Claude 确认收到', { exact: true }).waitFor();
+  check(await input.inputValue() === '', 'Clear accepted draft');
+  await input.fill('Preserve this synthetic draft on network failure');
+  const pattern = '**/interaction/send';
+  await page.route(pattern, route => route.abort('failed'));
+  await dialog.getByRole('button', { name: '发送', exact: true }).click();
+  await dialog.getByRole('alert').waitFor();
+  check((await input.inputValue()).includes('Preserve'), 'Failed request preserves draft');
+  await page.unroute(pattern);
+  await page.screenshot({ path: 'docs/live-interaction-desktop-synthetic.png' });
+  await page.setViewportSize({ width: 375, height: 812 });
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= 375), 'No mobile page overflow');
+  const bounds = await dialog.boundingBox();
+  check(bounds.x >= 0 && bounds.x + bounds.width <= 375, 'Dialog fits mobile');
+  await page.screenshot({ path: 'docs/live-interaction-mobile-synthetic.png' });
+  await page.keyboard.press('Escape');
+  check(await page.locator('dialog[open]').count() === 0, 'Escape closes dialog');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  console.log('PASS synthetic browser: modal input, no handoff, capability controls, transport status, failed draft, desktop/mobile, Escape');
+}
