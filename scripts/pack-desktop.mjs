@@ -33,8 +33,9 @@ try {
 
 const isWin = process.platform === 'win32';
 const bin = isWin ? 'npx.cmd' : 'npx';
+const publishArgs = args.includes('--publish') || args.includes('-p') ? [] : ['--publish', 'never'];
 
-const builder = spawn(bin, ['electron-builder', ...args], {
+const builder = spawn(bin, ['electron-builder', ...args, ...publishArgs], {
   stdio: 'inherit',
   shell: true,
   env: process.env,
