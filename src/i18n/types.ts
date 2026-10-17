@@ -32,6 +32,8 @@ export interface Translations {
     dashboard: string;
     soundOn: string;
     soundOff: string;
+    remoteControl: string;
+    remoteControlTooltip: string;
   };
   toolbar: {
     filterSessions: string;
@@ -80,6 +82,8 @@ export interface Translations {
   card: {
     collapseSession: string;
     expandSession: string;
+    openOnPhone: string;
+    backToBoard: string;
     sessionDetails: (title: string) => string;
     sessionContent: (provider: string) => string;
     recentOutput: string;
@@ -235,5 +239,48 @@ export interface Translations {
     projectNameLabel: string;
     projectNamePlaceholder: string;
     backToSelectList: string;
+  };
+  remoteControl: {
+    modalTitle: string;
+    sessionModalTitle: string;
+    modalSubtitle: string;
+    sessionModalSubtitle: (title: string) => string;
+    remoteLockedNotice: string;
+    enableLabel: string;
+    enableDesc: string;
+    deviceNameLabel: string;
+    deviceNamePlaceholder: string;
+    saveDeviceName: string;
+    savedDeviceName: string;
+    modeLan: string;
+    modeTunnel: string;
+    modeCustom: string;
+    lanInterfaceLabel: string;
+    lanHint: string;
+    tailscaleBadge: string;
+    lanBadge: string;
+    tunnelHint: string;
+    tunnelStartBtn: string;
+    tunnelStarting: string;
+    tunnelStopBtn: string;
+    tunnelRunningBadge: (provider: string) => string;
+    tunnelStoppedBadge: string;
+    tunnelErrorPrefix: string;
+    customUrlLabel: string;
+    customUrlPlaceholder: string;
+    customUrlHint: string;
+    urlLabel: string;
+    copyUrl: string;
+    rotateTokenBtn: string;
+    rotateTokenConfirm: string;
+    tokenRotated: string;
+    pwaGuideTitle: string;
+    pwaIosStep: string;
+    pwaAndroidStep: string;
+    pwaBannerTitle: string;
+    pwaBannerDesc: string;
+    pwaBannerInstallBtn: string;
+    pwaBannerDismiss: string;
+    close: string;
   };
 }

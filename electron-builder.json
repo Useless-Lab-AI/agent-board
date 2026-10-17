@@ -2,6 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.agentboard.desktop",
   "productName": "Agent Board",
+  "artifactName": "Agent-Board-${version}-${os}-${arch}.${ext}",
   "copyright": "Copyright © 2026 Agent Board Contributors",
   "directories": {
     "output": "dist-desktop",
@@ -20,9 +21,6 @@
       "filter": ["**/*"]
     }
   ],
-  "electronDownload": {
-    "mirror": "https://npmmirror.com/mirrors/electron/"
-  },
   "win": {
     "target": [
       {
@@ -68,6 +66,7 @@
       }
     ],
     "icon": "build/icon.png",
+    "maintainer": "Agent Board Contributors <noreply@github.com>",
     "category": "Development;Utility;",
     "synopsis": "Local multi-agent grid dashboard for Codex, Claude Code, and Antigravity",
     "description": "A lightweight, non-intrusive local AI session aggregation and interaction dashboard."

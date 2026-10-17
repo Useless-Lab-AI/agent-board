@@ -398,6 +398,13 @@ function createTray() {
         click: () => showMainWindow(),
       },
       {
+        label: '📱 手机远程控制 (Mobile Remote QR)',
+        click: () => {
+          showMainWindow();
+          mainWindow?.webContents.send('desktop:open-remote-control');
+        },
+      },
+      {
         label: '最小化到托盘 (Hide to Tray)',
         click: () => mainWindow?.hide(),
       },

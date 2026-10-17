@@ -37,8 +37,9 @@
   - **Anthropic Claude Code**: Powered by a zero-touch VS Code transparent `stdin/stdout` bridge (`agent-board-bridge`) and MCP Channels fallback (`claude-board`). Send human-authorized turns, review Unified Diffs for file edits, approve/deny commands, and answer interactive questions (`AskUserQuestion`) with bidirectional VS Code card sync.
   - **Antigravity**: Native workspace discovery and live turn dispatch via `language_server.exe`.
 - ➕ **One-Click Session Creation & Multimodal Attachments**: Launch new Codex, Claude Code, or Antigravity sessions directly from the board (with workspace, model, and permission selection), and paste or upload image/file attachments in the interaction modal.
+- 📲 **Mobile Remote Control & PWA Desktop App**: Built-in QR code remote access in both the top toolbar and individual session cards. Supports **3 connection modes** (**LAN / Tailscale Direct**, **One-Click Public HTTPS Tunnel**, and **Custom URL**). Scan on your phone to send messages, approve commands/diffs on the go, and **Add to Home Screen** as a standalone full-screen mobile app (PWA).
 - 🛡️ **Privacy & Security by Design**:
-  - Binds strictly to loopback (`127.0.0.1`), protected by exact Host/Origin checks to block CSRF and LAN eavesdropping;
+  - Zero-config passwordless access on local loopback (`127.0.0.1`), while all non-loopback requests require a **256-bit cryptographic token + `HttpOnly` cookie session** with strict Host/Origin validation and one-click token rotation;
   - Never bypasses security prompts or grants autonomous tool permissions;
   - Local SQLite database only stores display metadata (cursors, card ordering, archive status)—never raw chat transcripts.
 - 🌐 **Full Internationalization (i18n)**: Seamlessly toggle between Simplified Chinese (`zh-CN`), Traditional Chinese (`zh-TW`), English (`en-US`), and Japanese (`ja-JP`), with instant persistence.
@@ -66,10 +67,40 @@ npm run build
 npm start
 ```
 
-Open your browser at **http://127.0.0.1:4317**.
+Open your desktop browser at **http://127.0.0.1:4317**.
 
 > [!NOTE]
-> For security reasons, the server only listens on loopback (`127.0.0.1`). Avoid accessing via LAN IPs. For active backend development, use `npm run dev`.
+> On your host PC, open `http://127.0.0.1:4317` directly. To connect from a phone or another device, click **📱 Remote** in the top toolbar and scan the authorized QR code (unauthenticated LAN requests are blocked by the security guard). For active backend development, use `npm run dev`.
+
+---
+
+## 📱 Mobile Remote Control & PWA App
+
+Click **📱 Remote** in the top toolbar (or the `📱` button on any session card) to open the Mobile Remote Control modal. Agent Board supports **three connection methods** for seamless local and cross-network access:
+
+| Connection Mode | Best For | Network Requirement | Address Stability | Recommendation |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. LAN / Tailscale Direct** | Same Wi-Fi indoors, or **anywhere via Tailscale** | Same Wi-Fi, or **Tailscale** installed on PC & phone | **Permanent IP** (with Tailscale) | ⭐⭐⭐⭐⭐ **(Highly Recommended)** |
+| **2. Public HTTPS Tunnel** | Temporary 4G/5G cellular access without installing apps | PC has internet access; zero setup on phone | New temporary URL each time | ⭐⭐⭐⭐ |
+| **3. Custom Domain / Reverse Proxy** | Self-hosted FRP, Cloudflare Zero Trust, or Tailscale MagicDNS | User-configured reverse proxy / domain | Permanent | ⭐⭐⭐ |
+
+### 🌟 Why We Strongly Recommend Tailscale + PWA
+1. **Mode 1: LAN / Tailscale Direct (Recommended Best Practice)**
+   - **Same Wi-Fi Zero-Config**: When your phone and PC are on the same Wi-Fi, scan the QR code for instant `< 5ms` direct access.
+   - **Cross-Network Everywhere with Tailscale (Highly Recommended)**: Install [Tailscale](https://tailscale.com/) on your PC and phone under the same account. Agent Board automatically detects `100.64.0.0/10` **Tailscale interfaces** and labels them (`· Tailscale`) in the selector.
+   - **Permanent IP, Scan Once Forever**: Tailscale assigns a **permanent `100.x.x.x` IP** to your PC over an encrypted peer-to-peer WireGuard mesh. Whether you are at home on Wi-Fi or outdoors on 5G cellular data, your saved mobile app works immediately **without ever re-scanning a QR code or restarting a tunnel**.
+2. **Mode 2: Public HTTPS Tunnel (One-Click Zero-Install Access)**
+   - Need quick 5G remote access without Tailscale? Toggle **Public HTTPS Tunnel** in the modal. Agent Board automatically launches `cloudflared` (Cloudflare TryCloudflare) or native `ssh` (`localhost.run`) to generate an encrypted `https://xxx` public URL and updates the QR code on the fly.
+3. **Mode 3: Custom Domain / Reverse Proxy**
+   - Enter your own external origin (e.g., Tailscale MagicDNS `https://my-pc.tailxxxx.ts.net` or a custom reverse proxy) to generate a token-authenticated QR code.
+
+### 📲 Session Handoff & Installing as a Mobile App (PWA)
+- **Single-Session QR Handoff**: Click the `📱` icon on any session card to generate a deep-link QR code (`?session=<id>`). Scanning it on your phone opens **that specific session's live chat and approval modal immediately**.
+- **Install to Home Screen (PWA)**:
+  - **iOS (Safari)**: Scan the QR code $\rightarrow$ tap the **Share** button $\rightarrow$ **Add to Home Screen**.
+  - **Android (Chrome / Edge)**: Scan the QR code $\rightarrow$ tap the browser menu $\rightarrow$ **Install App** / **Add to Home Screen**.
+  - The dynamic `/manifest.webmanifest` embeds your auth token in `start_url`, giving you a **full-screen standalone app** that stays authenticated across launches.
+- **One-Click Token Revocation**: Administrative actions (starting tunnels, rotating tokens) are restricted to the host PC. Clicking **Rotate Token** immediately invalidates all previous QR codes and active mobile sessions.
 
 ---
 
@@ -175,7 +206,8 @@ Customize server parameters at startup:
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `AGENT_BOARD_PORT` | `4317` | Local loopback listening port |
+| `AGENT_BOARD_PORT` | `4317` | HTTP server listening port |
+| `AGENT_BOARD_HOST` | `0.0.0.0` | Bind address (non-loopback requests require token auth; set to `127.0.0.1` to disable LAN/Tailscale direct binding) |
 | `AGENT_BOARD_CODEX_HOME` | `%USERPROFILE%\.codex` | Codex session and config root |
 | `AGENT_BOARD_CLAUDE_HOME` | `%USERPROFILE%\.claude` | Claude session and config root |
 | `AGENT_BOARD_ANTIGRAVITY_HOME` | `%USERPROFILE%\.gemini\antigravity` | Antigravity session root |

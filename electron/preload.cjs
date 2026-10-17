@@ -9,4 +9,9 @@ contextBridge.exposeInMainWorld('agentBoardDesktop', {
   minimize: () => ipcRenderer.invoke('desktop:minimize'),
   maximize: () => ipcRenderer.invoke('desktop:maximize'),
   close: () => ipcRenderer.invoke('desktop:close'),
+  onOpenRemoteControl: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('desktop:open-remote-control', handler);
+    return () => ipcRenderer.removeListener('desktop:open-remote-control', handler);
+  },
 });

@@ -1,0 +1,126 @@
+name: Build & Release Desktop App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag name (e.g. v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+            package_script: dist:win
+          - os: macos-latest
+            platform: mac
+            package_script: dist:mac
+          - os: ubuntu-latest
+            platform: linux
+            package_script: dist:linux
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Sync version with release tag
+        shell: bash
+        run: |
+          RAW_TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          CLEAN_VER="${RAW_TAG#v}"
+          if [[ "$CLEAN_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            npm version "$CLEAN_VER" --no-git-tag-version --allow-same-version
+            echo "Synced package.json version to $CLEAN_VER"
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify TypeScript & i18n
+        run: |
+          npm run typecheck
+          npx tsx scripts/verify-i18n.mjs --dict-only
+
+      - name: Build & Package Desktop (${{ matrix.platform }})
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run ${{ matrix.package_script }}
+
+      - name: Collect release installers
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          shopt -s nullglob
+          for f in dist-desktop/*.exe dist-desktop/*.dmg dist-desktop/*.zip dist-desktop/*.AppImage dist-desktop/*.deb; do
+            # Normalize spaces in filenames to hyphens for clean download URLs
+            base="$(basename "$f")"
+            clean_name="${base// /-}"
+            cp "$f" "release-assets/$clean_name"
+            echo "Prepared asset: release-assets/$clean_name"
+          done
+
+      - name: Upload build artifacts (${{ matrix.platform }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.platform }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all platform installers
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS.txt
+        working-directory: release-assets
+        run: |
+          ls -lh
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release & Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: Agent Board ${{ github.event.inputs.tag || github.ref_name }}
+          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
+          generate_release_notes: true
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

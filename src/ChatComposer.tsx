@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { InteractionAttachment } from '../shared/interaction.js';
-import { request } from './api.js';
+import { request, withRemoteAuthUrl } from './api.js';
 import { useI18n } from './i18n/index.js';
 import styles from './Board.module.css';
 
@@ -29,7 +29,8 @@ function AttachmentThumb({ att }: { att: AttachedFileItem }) {
   const [triedUrl, setTriedUrl] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  const initialSrc = att.previewUrl || (isImage ? att.url : undefined);
+  const authAttUrl = att.url ? withRemoteAuthUrl(att.url) : undefined;
+  const initialSrc = att.previewUrl || (isImage ? authAttUrl : undefined);
   const [currentSrc, setCurrentSrc] = useState<string | undefined>(initialSrc);
 
   useEffect(() => {
@@ -37,11 +38,11 @@ function AttachmentThumb({ att }: { att: AttachedFileItem }) {
       setCurrentSrc(att.previewUrl);
       setHasError(false);
       setTriedUrl(false);
-    } else if (isImage && att.url) {
-      setCurrentSrc(att.url);
+    } else if (isImage && authAttUrl) {
+      setCurrentSrc(authAttUrl);
       setHasError(false);
     }
-  }, [att.previewUrl, att.url, isImage]);
+  }, [att.previewUrl, authAttUrl, isImage]);
 
   if (!isImage || hasError || !currentSrc) {
     return (
@@ -243,8 +244,9 @@ export function ChatComposer({
       }
       return prev.filter((a) => a.id !== attachmentId);
     });
-    void fetch(deleteEndpoint(attachmentId), {
+    void fetch(withRemoteAuthUrl(deleteEndpoint(attachmentId)), {
       method: 'DELETE',
+      headers: { 'X-Agent-Board': '1' },
     }).catch(() => {});
   };
 

@@ -4,13 +4,16 @@ import fs from 'node:fs';
 
 const args = process.argv.slice(2);
 
-// Set mirrors for reliable high-speed packaging worldwide
-process.env.ELECTRON_MIRROR = process.env.ELECTRON_MIRROR || 'https://npmmirror.com/mirrors/electron/';
-process.env.ELECTRON_BUILDER_BINARIES_MIRROR =
-  process.env.ELECTRON_BUILDER_BINARIES_MIRROR || 'https://npmmirror.com/mirrors/electron-builder-binaries/';
-
-console.log('[pack-desktop] Using ELECTRON_MIRROR:', process.env.ELECTRON_MIRROR);
-console.log('[pack-desktop] Using ELECTRON_BUILDER_BINARIES_MIRROR:', process.env.ELECTRON_BUILDER_BINARIES_MIRROR);
+// Set domestic mirrors for local builds; on GitHub Actions runners, use direct GitHub CDN for maximum speed
+if (!process.env.GITHUB_ACTIONS) {
+  process.env.ELECTRON_MIRROR = process.env.ELECTRON_MIRROR || 'https://npmmirror.com/mirrors/electron/';
+  process.env.ELECTRON_BUILDER_BINARIES_MIRROR =
+    process.env.ELECTRON_BUILDER_BINARIES_MIRROR || 'https://npmmirror.com/mirrors/electron-builder-binaries/';
+  console.log('[pack-desktop] Using ELECTRON_MIRROR:', process.env.ELECTRON_MIRROR);
+  console.log('[pack-desktop] Using ELECTRON_BUILDER_BINARIES_MIRROR:', process.env.ELECTRON_BUILDER_BINARIES_MIRROR);
+} else {
+  console.log('[pack-desktop] Running in GitHub Actions — using default upstream Electron mirrors.');
+}
 
 // Clean up stale lock files if any
 try {

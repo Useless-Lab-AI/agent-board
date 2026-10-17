@@ -1,16 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Provider, SessionList, SessionView } from '../shared/types.js';
-import { request } from './api.js';
+import { request, withRemoteAuthUrl } from './api.js';
 import { SessionCard } from './SessionCard.js';
 import { AgentLogo } from './AgentLogo.js';
 import { NewSessionModal } from './NewSessionModal.js';
+import { RemoteControlModal } from './RemoteControlModal.js';
 import { ThemeSwitcher } from './ThemeSwitcher.js';
 import { I18nProvider, LanguageSwitcher, useI18n } from './i18n/index.js';
 import { isSoundEnabled, setSoundEnabled, playSound } from './sound.js';
 import styles from './Board.module.css';
 
+function isRunningStandalonePwa(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return (
+      window.matchMedia(
+        '(display-mode: standalone), (display-mode: window-controls-overlay), (display-mode: minimal-ui)',
+      ).matches || (window.navigator as any).standalone === true
+    );
+  } catch {
+    return false;
+  }
+}
+
 function BoardApp() {
-  const { t } = useI18n();
+  const { t, tr } = useI18n();
   const [sessions, setSessions] = useState<SessionView[]>([]);
   const [sources, setSources] = useState<SessionList['sources']>([]);
   const [provider, setProvider] = useState('');
@@ -34,8 +48,53 @@ function BoardApp() {
 
   const [newModalOpen, setNewModalOpen] = useState(false);
   const [newModalProvider, setNewModalProvider] = useState<Provider>('antigravity');
-  const [autoExpandId, setAutoExpandId] = useState<string | null>(null);
+  const [autoExpandId, setAutoExpandId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return new URLSearchParams(window.location.search).get('session');
+    } catch {
+      return null;
+    }
+  });
   const [lastActiveCwd, setLastActiveCwd] = useState<string>('');
+  const [remoteModalOpen, setRemoteModalOpen] = useState(false);
+  const [remoteTargetSession, setRemoteTargetSession] = useState<SessionView | null>(null);
+  const [deferredPwaPrompt, setDeferredPwaPrompt] = useState<any>(null);
+  const [showPwaBanner, setShowPwaBanner] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      if (isRunningStandalonePwa()) return false;
+      if (localStorage.getItem('agent_board_pwa_dismissed') === '1') return false;
+      const isRemoteHost =
+        window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost';
+      const isMobileScreen = window.matchMedia('(max-width: 768px)').matches;
+      return isRemoteHost || isMobileScreen;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPwaPrompt(e);
+      if (!isRunningStandalonePwa() && localStorage.getItem('agent_board_pwa_dismissed') !== '1') {
+        setShowPwaBanner(true);
+      }
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
+
+  useEffect(() => {
+    const desktopApi = (window as any).agentBoardDesktop;
+    if (desktopApi && typeof desktopApi.onOpenRemoteControl === 'function') {
+      return desktopApi.onOpenRemoteControl(() => {
+        setRemoteTargetSession(null);
+        setRemoteModalOpen(true);
+      });
+    }
+  }, []);
 
   const handleOpenNewSession = (p: Provider) => {
     setNewModalProvider(p);
@@ -238,7 +297,7 @@ function BoardApp() {
   }, [discovering]);
 
   useEffect(() => {
-    const stream = new EventSource('/api/events');
+    const stream = new EventSource(withRemoteAuthUrl('/api/events'));
     let timer: ReturnType<typeof setTimeout> | undefined;
     stream.onopen = () => {
       setConnected(true);
@@ -258,6 +317,26 @@ function BoardApp() {
     };
   }, []);
 
+  const handleDismissPwaBanner = () => {
+    setShowPwaBanner(false);
+    try {
+      localStorage.setItem('agent_board_pwa_dismissed', '1');
+    } catch {}
+  };
+
+  const handleInstallPwa = async () => {
+    if (deferredPwaPrompt && typeof deferredPwaPrompt.prompt === 'function') {
+      try {
+        await deferredPwaPrompt.prompt();
+        setDeferredPwaPrompt(null);
+        setShowPwaBanner(false);
+        return;
+      } catch {}
+    }
+    setRemoteTargetSession(null);
+    setRemoteModalOpen(true);
+  };
+
   return (
     <main className={styles.app}>
       <header className={styles.topbar}>
@@ -276,6 +355,20 @@ function BoardApp() {
             {connected ? t.topbar.connected : t.topbar.reconnecting}
           </div>
           <button
+            type="button"
+            className={styles.remoteTopbarBtn}
+            onClick={() => {
+              playSound('click');
+              setRemoteTargetSession(null);
+              setRemoteModalOpen(true);
+            }}
+            title={t.topbar.remoteControlTooltip}
+            aria-label={t.topbar.remoteControl}
+          >
+            <span aria-hidden="true">📱</span>
+            <span>{t.topbar.remoteControl}</span>
+          </button>
+          <button
             className={styles.soundToggle}
             data-active={soundOn}
             onClick={toggleSound}
@@ -288,6 +381,32 @@ function BoardApp() {
           <LanguageSwitcher />
         </div>
       </header>
+      {showPwaBanner && (
+        <div className={styles.pwaBanner} role="region" aria-label={t.remoteControl.pwaBannerTitle}>
+          <div className={styles.pwaBannerText}>
+            <strong>📲 {t.remoteControl.pwaBannerTitle}</strong>
+            <span>{t.remoteControl.pwaBannerDesc}</span>
+          </div>
+          <div className={styles.pwaBannerActions}>
+            {deferredPwaPrompt && (
+              <button
+                type="button"
+                className={styles.pwaBannerInstall}
+                onClick={() => void handleInstallPwa()}
+              >
+                {t.remoteControl.pwaBannerInstallBtn}
+              </button>
+            )}
+            <button
+              type="button"
+              className={styles.pwaBannerDismiss}
+              onClick={handleDismissPwaBanner}
+            >
+              {t.remoteControl.pwaBannerDismiss}
+            </button>
+          </div>
+        </div>
+      )}
       <section className={styles.toolbar} aria-label={t.toolbar.filterSessions}>
         <div className={styles.tabs}>
           <button
@@ -442,12 +561,23 @@ function BoardApp() {
             newlyDiscovered={session.discoveredAt > openedAt.current && !discovering}
             autoExpand={session.id === autoExpandId}
             initialPrompt={newSessionPrompts[session.id]}
+            onOpenRemote={(s) => {
+              setRemoteTargetSession(s);
+              setRemoteModalOpen(true);
+            }}
             onExpandChange={(expanded) => {
               if (expanded && session.cwd) {
                 setLastActiveCwd(session.cwd);
               }
               if (!expanded && autoExpandId === session.id) {
                 setAutoExpandId(null);
+                try {
+                  const u = new URL(window.location.href);
+                  if (u.searchParams.get('session') === session.id) {
+                    u.searchParams.delete('session');
+                    window.history.replaceState(null, '', u.toString());
+                  }
+                } catch {}
               }
             }}
             onChange={(action) =>
@@ -476,6 +606,15 @@ function BoardApp() {
         allSessions={sessions}
         onClose={() => setNewModalOpen(false)}
         onSuccess={handleNewSessionSuccess}
+      />
+      <RemoteControlModal
+        isOpen={remoteModalOpen}
+        sessionId={remoteTargetSession?.id}
+        sessionTitle={remoteTargetSession ? tr(remoteTargetSession.title) : undefined}
+        onClose={() => {
+          setRemoteModalOpen(false);
+          setRemoteTargetSession(null);
+        }}
       />
     </main>
   );

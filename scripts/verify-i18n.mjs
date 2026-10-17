@@ -50,6 +50,10 @@ compareObjects(zhCN, zhTW, 'zh-TW');
 compareObjects(zhCN, jaJP, 'ja-JP');
 console.log('PASS dictionary parity: zh-CN, zh-TW, en-US, and ja-JP have 100% key-for-key and type alignment.');
 
+if (process.argv.includes('--dict-only')) {
+  process.exit(0);
+}
+
 // 2. Start synthetic server and run playwright-cli browser verification
 console.log('2. Starting synthetic server for browser verification...');
 const server = spawn(process.execPath, ['scripts/verify-http.mjs', '--serve'], {

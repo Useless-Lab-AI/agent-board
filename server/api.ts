@@ -17,7 +17,9 @@ import type { SessionView, Vector } from '../shared/types.js';
 import type { InteractionAttachment } from '../shared/interaction.js';
 import { createSession } from './session-creator.js';
 import { getAvailableModels } from './models.js';
+import { extractRequestToken, RemoteControlManager } from './remote-control.js';
 const port = Number(process.env.AGENT_BOARD_PORT ?? 4317);
+const listenHost = process.env.AGENT_BOARD_HOST ?? '0.0.0.0';
 const codexHome = process.env.AGENT_BOARD_CODEX_HOME ?? path.join(os.homedir(), '.codex');
 const claudeHome = process.env.AGENT_BOARD_CLAUDE_HOME ?? path.join(os.homedir(), '.claude');
 const antigravityHome =
@@ -55,6 +57,9 @@ function broadcast(event: string, data: unknown) {
     }
   }
 }
+const remoteControl = new RemoteControlManager(store, port, () => {
+  broadcast('remote_control', {});
+});
 const runtimeStates = new Map<string,string>();
 const interactions = new Interactions(codexHome, claudeHome, (id) => {
   broadcast('interaction', { id });
@@ -439,14 +444,25 @@ function view(id: string): SessionView {
 }
 const server = createServer(async (req, res) => {
   try {
-    guard(req, port);
+    const { isRemoteClient } = guard(req, port, (r) =>
+      remoteControl.verifyToken(extractRequestToken(r, port)),
+    );
+    if (isRemoteClient) {
+      const reqToken = extractRequestToken(req, port);
+      if (reqToken) {
+        res.setHeader(
+          'Set-Cookie',
+          `agent_board_rc=${encodeURIComponent(reqToken)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`,
+        );
+      }
+    }
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; font-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
     );
     const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
     if (req.method === 'GET' && url.pathname === '/api/sessions') {
@@ -907,6 +923,120 @@ const server = createServer(async (req, res) => {
         throw new HttpError(500, err?.message || '创建会话失败');
       }
     }
+    if (req.method === 'GET' && url.pathname === '/api/remote-control') {
+      res.end(JSON.stringify(remoteControl.getStatus(isRemoteClient)));
+      return;
+    }
+    if (req.method === 'POST' && url.pathname === '/api/remote-control') {
+      if (isRemoteClient) {
+        throw new HttpError(403, '远程设备不可修改远程控制设置');
+      }
+      const body = await jsonBody(req);
+      if (typeof body.enabled === 'boolean') {
+        remoteControl.setEnabled(body.enabled);
+      }
+      if (typeof body.deviceName === 'string') {
+        remoteControl.setDeviceName(body.deviceName);
+      }
+      if (typeof body.customUrl === 'string') {
+        remoteControl.setCustomUrl(body.customUrl);
+      }
+      if (body.action === 'rotateToken') {
+        remoteControl.rotateToken();
+      } else if (body.action === 'startTunnel') {
+        await remoteControl.startTunnel();
+      } else if (body.action === 'stopTunnel') {
+        remoteControl.stopTunnel();
+      }
+      res.end(JSON.stringify(remoteControl.getStatus(false)));
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/manifest.webmanifest') {
+      const reqToken = extractRequestToken(req, port);
+      const startUrl =
+        reqToken && remoteControl.verifyToken(reqToken)
+          ? `/?rc=${encodeURIComponent(reqToken)}`
+          : '/';
+      const iconQuery =
+        reqToken && remoteControl.verifyToken(reqToken)
+          ? `?rc=${encodeURIComponent(reqToken)}`
+          : '';
+      res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+      res.end(
+        JSON.stringify({
+          id: '/',
+          name: `${remoteControl.getDeviceName()} · Agent Board`,
+          short_name: 'Agent Board',
+          description: 'Multi-agent session remote control for Codex, Claude Code, and Antigravity',
+          start_url: startUrl,
+          scope: '/',
+          display: 'standalone',
+          orientation: 'portrait-primary',
+          background_color: '#0d1210',
+          theme_color: '#1c523e',
+          icons: [
+            {
+              src: `/apple-touch-icon.png${iconQuery}`,
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any maskable',
+            },
+            {
+              src: `/icon.svg${iconQuery}`,
+              sizes: 'any',
+              type: 'image/svg+xml',
+              purpose: 'any maskable',
+            },
+          ],
+        }),
+      );
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/icon.svg') {
+      res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+      res.end(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="#0d131a"/>
+  <rect x="64" y="64" width="172" height="172" rx="28" fill="#18222f" stroke="#2d3f54" stroke-width="6"/>
+  <circle cx="96" cy="96" r="10" fill="#38bdf8"/>
+  <rect x="118" y="90" width="76" height="12" rx="6" fill="#0284c7"/>
+  <rect x="86" y="126" width="128" height="8" rx="4" fill="#64748b"/>
+  <rect x="86" y="144" width="108" height="8" rx="4" fill="#64748b"/>
+  <rect x="86" y="162" width="88" height="8" rx="4" fill="#64748b"/>
+  <rect x="276" y="64" width="172" height="172" rx="28" fill="#18222f" stroke="#2d3f54" stroke-width="6"/>
+  <circle cx="308" cy="96" r="10" fill="#f59e0b"/>
+  <rect x="330" y="90" width="76" height="12" rx="6" fill="#d97706"/>
+  <rect x="298" y="126" width="128" height="8" rx="4" fill="#64748b"/>
+  <rect x="298" y="144" width="108" height="8" rx="4" fill="#64748b"/>
+  <rect x="298" y="162" width="88" height="8" rx="4" fill="#64748b"/>
+  <rect x="64" y="276" width="172" height="172" rx="28" fill="#18222f" stroke="#2d3f54" stroke-width="6"/>
+  <circle cx="96" cy="308" r="10" fill="#818cf8"/>
+  <rect x="118" y="302" width="76" height="12" rx="6" fill="#6366f1"/>
+  <rect x="86" y="338" width="128" height="8" rx="4" fill="#64748b"/>
+  <rect x="86" y="356" width="108" height="8" rx="4" fill="#64748b"/>
+  <rect x="86" y="374" width="88" height="8" rx="4" fill="#64748b"/>
+  <rect x="276" y="276" width="172" height="172" rx="28" fill="#18222f" stroke="#2d3f54" stroke-width="6"/>
+  <circle cx="308" cy="308" r="10" fill="#22c55e"/>
+  <rect x="330" y="302" width="76" height="12" rx="6" fill="#16a34a"/>
+  <rect x="298" y="338" width="128" height="8" rx="4" fill="#64748b"/>
+  <rect x="298" y="356" width="108" height="8" rx="4" fill="#64748b"/>
+  <rect x="298" y="374" width="88" height="8" rx="4" fill="#64748b"/>
+</svg>`,
+      );
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/apple-touch-icon.png') {
+      const iconCandidates = [
+        path.resolve(import.meta.dirname, '../../build/icon.png'),
+        path.resolve('build/icon.png'),
+      ];
+      const iconFile = iconCandidates.find((p) => existsSync(p));
+      if (iconFile) {
+        res.setHeader('Content-Type', 'image/png');
+        res.end(await readFile(iconFile));
+        return;
+      }
+    }
     if (req.method === 'GET' && !url.pathname.startsWith('/api/')) {
       const defaultWebDir = path.resolve(import.meta.dirname, '../web');
       const root = process.env.AGENT_BOARD_WEB_DIR ? path.resolve(process.env.AGENT_BOARD_WEB_DIR) : (existsSync(defaultWebDir) ? defaultWebDir : path.resolve('dist/web'));
@@ -921,6 +1051,7 @@ const server = createServer(async (req, res) => {
           '.svg': 'image/svg+xml',
           '.png': 'image/png',
           '.ico': 'image/x-icon',
+          '.webmanifest': 'application/manifest+json; charset=utf-8',
         };
         if (!type[path.extname(file)]) throw new HttpError(404, '未找到静态资源');
         res.setHeader('Content-Type', type[path.extname(file)]);
@@ -942,7 +1073,7 @@ const server = createServer(async (req, res) => {
     );
   }
 });
-server.listen(port, '127.0.0.1', () => {
+server.listen(port, listenHost, () => {
   console.log(`Agent Board: http://127.0.0.1:${port}`);
   void getAvailableModels().catch(() => {});
 });
@@ -956,6 +1087,7 @@ async function shutdown() {
     } catch {}
   }
   for (const client of clients) client.end();
+  remoteControl.stopTunnel();
   server.close();
   await interactions.close();
   store.close();

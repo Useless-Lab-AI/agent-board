@@ -27,13 +27,40 @@ export async function contained(root: string, file: string) {
     throw new HttpError(403, '路径超出允许的来源目录');
   return target;
 }
-export function guard(req: IncomingMessage, port: number) {
+export function guard(
+  req: IncomingMessage,
+  port: number,
+  remoteVerify?: (req: IncomingMessage) => boolean,
+): { isRemoteClient: boolean } {
   const authority = `127.0.0.1:${port}`;
-  if (
-    req.headers.host !== authority ||
-    (req.headers.origin && req.headers.origin !== `http://${authority}`)
-  )
-    throw new HttpError(403, '只允许本机同源访问');
+  const addr = req.socket?.remoteAddress;
+  const isLoopbackSocket =
+    !addr || addr === '127.0.0.1' || addr === '::ffff:127.0.0.1' || addr === '::1';
+  const isForwarded = Boolean(req.headers['x-forwarded-for'] || req.headers['x-forwarded-host']);
+  const isLocalDirect = isLoopbackSocket && !isForwarded && req.headers.host === authority;
+
+  if (isLocalDirect) {
+    if (req.headers.origin && req.headers.origin !== `http://${authority}`) {
+      throw new HttpError(403, '只允许本机同源访问');
+    }
+  } else {
+    const host = req.headers.host;
+    if (!host || !remoteVerify?.(req)) {
+      throw new HttpError(403, '只允许本机同源访问');
+    }
+    if (req.headers.origin) {
+      let originHost = '';
+      try {
+        originHost = new URL(req.headers.origin).host;
+      } catch {
+        throw new HttpError(403, '只允许本机同源访问');
+      }
+      if (originHost !== host) {
+        throw new HttpError(403, '只允许本机同源访问');
+      }
+    }
+  }
+
   if (req.headers['sec-fetch-site'] === 'cross-site') throw new HttpError(403, '拒绝跨站请求');
   if (
     req.method === 'POST' &&
@@ -41,6 +68,8 @@ export function guard(req: IncomingMessage, port: number) {
       !req.headers['content-type']?.startsWith('application/json'))
   )
     throw new HttpError(403, '写入需要 JSON 和看板请求标识');
+
+  return { isRemoteClient: !isLocalDirect };
 }
 export async function jsonBody(req: IncomingMessage, limit = 65536): Promise<Record<string, unknown>> {
   let length = 0;

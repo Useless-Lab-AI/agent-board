@@ -2341,6 +2341,7 @@
   }
 
   /* Top-bar controls */
+  .remoteTopbarBtn,
   .soundToggle,
   .themeSwitch,
   .langSelector {
@@ -2359,7 +2360,8 @@
     -webkit-backdrop-filter: blur(12px) saturate(1.2);
     backdrop-filter: blur(12px) saturate(1.2);
   }
-  .newSessionModal {
+  .newSessionModal,
+  .remoteModal {
     background: var(--glass-bg-strong);
     -webkit-backdrop-filter: blur(28px) saturate(1.6);
     backdrop-filter: blur(28px) saturate(1.6);
@@ -2369,3 +2371,501 @@
 .toolbar select {
   color-scheme: inherit;
 }
+
+/* ---------- Remote Control & Mobile PWA ---------- */
+.remoteTopbarBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  background: var(--c-e5f2eb);
+  border: 1px solid var(--c-a8cfbb);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-1e523f);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+}
+.remoteTopbarBtn:hover {
+  background: var(--c-d7ebe0);
+  border-color: var(--c-8ebf9f);
+  transform: translateY(-1px);
+}
+
+.cardHeaderActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.mobileBackBtn {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 7px;
+  background: var(--c-edf3f0);
+  border: 1px solid var(--c-d0ddd5);
+  color: var(--c-1f3b2e);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pwaBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--c-e6f3ec);
+  border: 1px solid var(--c-b7d8c6);
+  color: var(--c-1d4332);
+  font-size: 12px;
+}
+.pwaBannerText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pwaBannerText strong {
+  font-size: 12.5px;
+  color: var(--c-163829);
+}
+.pwaBannerText span {
+  font-size: 11.5px;
+  color: var(--c-3f5e4f);
+}
+.pwaBannerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.pwaBannerInstall {
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 0;
+  background: var(--c-1c523e);
+  color: var(--c-ffffff);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pwaBannerDismiss {
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--c-bdd4c7);
+  background: var(--c-ffffff);
+  color: var(--c-3b5447);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.remoteModal {
+  width: min(460px, calc(100vw - 24px));
+  height: auto;
+  max-height: calc(100dvh - 32px);
+  border-radius: 14px;
+  padding: 0;
+  overflow: hidden;
+}
+.remoteModalContainer {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.remoteModalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--c-e3ebe6);
+}
+.remoteModalTitleGroup {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.remoteModalIcon {
+  font-size: 22px;
+  line-height: 1.1;
+}
+.remoteModalTitleGroup h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--c-1b3126);
+}
+.remoteModalTitleGroup p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--c-5e7267);
+}
+.remoteModalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 20px 20px;
+}
+.remoteLockedBanner {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--c-f4f7f5);
+  border: 1px solid var(--c-d5e0d9);
+  font-size: 11.5px;
+  color: var(--c-52685b);
+}
+.remoteModeTabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--c-edf2ef);
+  border: 1px solid var(--c-dae3de);
+}
+.remoteModeTab,
+.remoteModeTabActive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.15s ease;
+}
+.remoteModeTab {
+  background: transparent;
+  color: var(--c-596d61);
+}
+.remoteModeTabActive {
+  background: var(--c-ffffff);
+  color: var(--c-1a4734);
+  box-shadow: 0 1px 3px var(--k-0-0-0-0_08-sh);
+}
+.remoteLiveDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16a34a;
+  display: inline-block;
+}
+.remoteQrStage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 236px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--c-f6f9f7);
+  border: 1px solid var(--c-dfe8e3);
+}
+.remoteQrCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+.remoteQrSvg {
+  display: block;
+  color: #111827;
+}
+.remoteQrDeviceBadge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #374151;
+}
+.remoteQrSessionPill {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #065f46;
+}
+.remoteTunnelPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 16px;
+  max-width: 320px;
+}
+.remoteModeHint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--c-5c7065);
+}
+.remoteTunnelError {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--c-b83220);
+}
+.remoteControlSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.remoteFieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-2b4236);
+}
+.remoteFieldTitle {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--c-4b6155);
+}
+.remoteTunnelBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--c-e7f5ed);
+  border: 1px solid var(--c-b8dfc9);
+}
+.remoteTunnelRunningBadge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-1d6846);
+}
+.remoteUrlBox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
+  border-radius: 8px;
+  background: var(--c-f2f6f4);
+  border: 1px solid var(--c-d4e0d9);
+}
+.remoteUrlText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--c-263d31);
+  user-select: all;
+}
+.remoteCopyBtn {
+  padding: 5px 11px;
+  border-radius: 6px;
+  border: 1px solid var(--c-c7d6ce);
+  background: var(--c-ffffff);
+  color: var(--c-1e4a37);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.remoteCopyBtn:hover {
+  background: var(--c-e8f2ec);
+}
+.remoteSettingsBox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--c-f5f8f6);
+  border: 1px solid var(--c-dde7e1);
+}
+.remoteSettingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.remoteSettingRow strong {
+  display: block;
+  font-size: 12.5px;
+  color: var(--c-22382c);
+}
+.remoteSettingRow p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--c-63776c);
+}
+.remoteSwitch {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--c-1c523e);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.remoteDeviceRow {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--c-364d40);
+}
+.remoteDeviceInputGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.remotePwaGuide {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--c-f2f6f4);
+  border: 1px solid var(--c-dce6e0);
+  font-size: 11.5px;
+  color: var(--c-3b5246);
+}
+.remotePwaGuide summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--c-1e4d38);
+  user-select: none;
+}
+.remotePwaGuide ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  line-height: 1.45;
+}
+
+.questionOptionPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 6px;
+}
+.questionOptionPill,
+.questionOptionPillActive {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 28px !important;
+}
+.questionOptionPill {
+  background: var(--c-edf3f0);
+  border: 1px solid var(--c-cad8d0);
+  color: var(--c-2b4638);
+}
+.questionOptionPillActive {
+  background: var(--c-1c523e);
+  border: 1px solid var(--c-1c523e);
+  color: var(--c-ffffff);
+}
+
+/* Antigravity-inspired Mobile & Standalone PWA Layout */
+@media (max-width: 768px) {
+  .app {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    padding-left: max(12px, env(safe-area-inset-left, 12px));
+    padding-right: max(12px, env(safe-area-inset-right, 12px));
+  }
+  .topbarRight {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .boardHeading {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .boardHeadingRight {
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .newSessionGroup {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .newSessionBtn {
+    justify-content: center;
+    padding: 8px 6px;
+  }
+  .dialog:not(.remoteModal):not(.newSessionModal) {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+    border: 0;
+  }
+  .expandedCard {
+    height: 100dvh;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
+  }
+  .expandedCard .mobileBackBtn {
+    display: inline-flex;
+  }
+  .expandedCard .cardHeader {
+    padding: 12px 14px 10px;
+    gap: 8px;
+  }
+  .allowButton,
+  .denyButton {
+    min-height: 40px !important;
+    padding: 10px 18px !important;
+  }
+  .pwaBanner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pwaBannerActions {
+    justify-content: flex-end;
+  }
+}
+

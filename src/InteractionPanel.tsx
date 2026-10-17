@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { InteractionView } from '../shared/interaction.js';
-import { request } from './api.js';
+import { request, withRemoteAuthUrl } from './api.js';
 import { useI18n } from './i18n/index.js';
 import { playSound } from './sound.js';
 import { CopyButton } from './CopyButton.js';
@@ -152,7 +152,7 @@ export function InteractionPanel({
       }
     }
     refreshRef.current = refresh;
-    const stream = new EventSource('/api/events');
+    const stream = new EventSource(withRemoteAuthUrl('/api/events'));
     stream.onopen = () => {
       setConnected(true);
       void refresh();
@@ -333,10 +333,54 @@ export function InteractionPanel({
                   <label key={q.id}>
                     {q.text}
                     {q.options.length > 0 && (
-                      <small>
-                        {t.interaction.options}{q.options.join(' / ')}
-                        {q.multiple ? t.interaction.multipleAllowed : ''}
-                      </small>
+                      <>
+                        <small>
+                          {t.interaction.options}{q.options.join(' / ')}
+                          {q.multiple ? t.interaction.multipleAllowed : ''}
+                        </small>
+                        <div className={styles.questionOptionPills}>
+                          {q.options.map((opt) => {
+                            const curVal = answers[p.id]?.[q.id] ?? '';
+                            const isSelected = q.multiple
+                              ? curVal.split(',').map((s) => s.trim()).includes(opt)
+                              : curVal === opt;
+                            return (
+                              <button
+                                key={opt}
+                                type="button"
+                                className={
+                                  isSelected
+                                    ? styles.questionOptionPillActive
+                                    : styles.questionOptionPill
+                                }
+                                onClick={() => {
+                                  setAnswers((a) => {
+                                    const prev = a[p.id]?.[q.id] ?? '';
+                                    let next = opt;
+                                    if (q.multiple && prev) {
+                                      const parts = prev
+                                        .split(',')
+                                        .map((s) => s.trim())
+                                        .filter(Boolean);
+                                      if (parts.includes(opt)) {
+                                        next = parts.filter((x) => x !== opt).join(', ');
+                                      } else {
+                                        next = [...parts, opt].join(', ');
+                                      }
+                                    }
+                                    return {
+                                      ...a,
+                                      [p.id]: { ...a[p.id], [q.id]: next },
+                                    };
+                                  });
+                                }}
+                              >
+                                {opt}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
                     )}
                     <input
                       required

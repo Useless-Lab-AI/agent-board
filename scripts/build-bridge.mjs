@@ -159,11 +159,32 @@ async function main() {
 
   console.log(`[build-bridge] Found Go compiler at: ${goExe}`);
   try {
-    execSync(`"${goExe}" build -trimpath -ldflags="-s -w" -o "${targetBinary}" .`, {
-      cwd: bridgeDir,
-      stdio: 'inherit',
-      env: process.env,
-    });
+    if (process.platform === 'darwin') {
+      const armBin = `${targetBinary}.arm64`;
+      const amdBin = `${targetBinary}.amd64`;
+      execSync(`"${goExe}" build -trimpath -ldflags="-s -w" -o "${armBin}" .`, {
+        cwd: bridgeDir,
+        stdio: 'inherit',
+        env: { ...process.env, GOOS: 'darwin', GOARCH: 'arm64', CGO_ENABLED: '0' },
+      });
+      execSync(`"${goExe}" build -trimpath -ldflags="-s -w" -o "${amdBin}" .`, {
+        cwd: bridgeDir,
+        stdio: 'inherit',
+        env: { ...process.env, GOOS: 'darwin', GOARCH: 'amd64', CGO_ENABLED: '0' },
+      });
+      execSync(`lipo -create -output "${targetBinary}" "${armBin}" "${amdBin}"`, {
+        stdio: 'inherit',
+      });
+      fs.unlinkSync(armBin);
+      fs.unlinkSync(amdBin);
+      fs.chmodSync(targetBinary, 0o755);
+    } else {
+      execSync(`"${goExe}" build -trimpath -ldflags="-s -w" -o "${targetBinary}" .`, {
+        cwd: bridgeDir,
+        stdio: 'inherit',
+        env: process.env,
+      });
+    }
     console.log(`[build-bridge] ✓ Successfully built: ${targetBinary} (${(fs.statSync(targetBinary).size / (1024 * 1024)).toFixed(2)} MB)`);
   } catch (err) {
     console.error(`[build-bridge] Failed to build Go bridge:`, err);

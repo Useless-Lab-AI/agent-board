@@ -117,6 +117,7 @@ export function SessionCard({
   autoExpand,
   onExpandChange,
   initialPrompt,
+  onOpenRemote,
 }: {
   session: SessionView;
   newlyDiscovered: boolean;
@@ -124,6 +125,7 @@ export function SessionCard({
   autoExpand?: boolean;
   onExpandChange?: (expanded: boolean) => void;
   initialPrompt?: string;
+  onOpenRemote?: (session: SessionView) => void;
 }) {
   const { t, tr, locale } = useI18n();
   const sessionTitle = tr(session.title);
@@ -163,6 +165,26 @@ export function SessionCard({
   const content = useRef<HTMLDivElement>(null);
   const modalContent = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const el = dialog.current;
+    if (!el || !expanded) return;
+    if ('closedBy' in HTMLDialogElement.prototype) return;
+    const handleBackdropClick = (event: MouseEvent) => {
+      if (event.target !== el) return;
+      const rect = el.getBoundingClientRect();
+      if (
+        event.clientX < rect.left ||
+        event.clientX > rect.right ||
+        event.clientY < rect.top ||
+        event.clientY > rect.bottom
+      ) {
+        el.close();
+      }
+    };
+    el.addEventListener('click', handleBackdropClick);
+    return () => el.removeEventListener('click', handleBackdropClick);
+  }, [expanded]);
   const follow = useRef(true);
   const initial = useRef(true);
   const requestVersion = useRef(0);
@@ -425,8 +447,23 @@ export function SessionCard({
 
   const projectDisplay = resolveProjectDisplay(session.cwd);
 
-  const header = (
+  const toggleExpand = (next: boolean) => {
+    setExpanded(next);
+    onExpandChange?.(next);
+  };
+
+  const renderHeader = (isModal = false) => (
     <header className={styles.cardHeader}>
+      {isModal && (
+        <button
+          type="button"
+          className={styles.mobileBackBtn}
+          onClick={() => toggleExpand(false)}
+          aria-label={t.card.backToBoard}
+        >
+          {t.card.backToBoard}
+        </button>
+      )}
       <div className={styles.cardIdentity}>
         <span className={styles.provider} data-provider={session.provider}>
           <AgentLogo provider={session.provider} />
@@ -462,13 +499,30 @@ export function SessionCard({
           </p>
         </div>
       </div>
-      <button
-        className={styles.iconButton}
-        aria-label={expanded ? t.card.collapseSession : t.card.expandSession}
-        onClick={() => setExpanded(!expanded)}
-      >
-        {expanded ? '↙' : '↗'}
-      </button>
+      <div className={styles.cardHeaderActions}>
+        {onOpenRemote && (
+          <button
+            type="button"
+            className={styles.iconButton}
+            title={t.card.openOnPhone}
+            aria-label={t.card.openOnPhone}
+            onClick={() => {
+              playSound('click');
+              onOpenRemote(session);
+            }}
+          >
+            📱
+          </button>
+        )}
+        <button
+          type="button"
+          className={styles.iconButton}
+          aria-label={expanded ? t.card.collapseSession : t.card.expandSession}
+          onClick={() => toggleExpand(!expanded)}
+        >
+          {expanded ? '↙' : '↗'}
+        </button>
+      </div>
     </header>
   );
 
@@ -629,7 +683,7 @@ export function SessionCard({
             data-running={session.execution === 'RUNNING'}
             onClick={() => {
               playSound('click');
-              setExpanded(true);
+              toggleExpand(true);
             }}
             aria-label={t.card.interact}
           >
@@ -662,27 +716,22 @@ export function SessionCard({
         data-execution={session.execution}
         data-archiving={isArchiving}
       >
-        {header}
+        {renderHeader(false)}
         {badges}
         {body()}
         {controls()}
       </article>
       <dialog
         ref={dialog}
+        closedby="any"
         className={styles.dialog}
-        onCancel={() => {
-          setExpanded(false);
-          onExpandChange?.(false);
-        }}
-        onClose={() => {
-          setExpanded(false);
-          onExpandChange?.(false);
-        }}
+        onCancel={() => toggleExpand(false)}
+        onClose={() => toggleExpand(false)}
         aria-label={t.card.sessionDetails(sessionTitle)}
       >
         {expanded && (
           <div className={styles.expandedCard}>
-            {header}
+            {renderHeader(true)}
             {badges}
             {body(true)}
             <InteractionPanel
