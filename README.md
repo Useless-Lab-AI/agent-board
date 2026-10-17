@@ -28,21 +28,6 @@
 
 ---
 
-## 🎬 Showcase Video & Live Demo
-
-Watch the real-time simulation of Agent Board in action:
-- **Interactive Player**: Launch the [**Online 60 FPS Interactive Demo**](https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=en-US) or open [`promo-video/index.html`](promo-video/index.html) directly in any browser (zero dependencies, 100% offline).
-- **Core Workflow Chapters**:
-  - `00:00` **Live Stream Tracking**: Multi-agent terminal streaming with sub-pixel auto-scroll, spinning CLI indicator, and live log coloration.
-  - `04:00` **Dual-Track Decoupling**: Complete separation of execution states (*Running / Waiting Approval / Completed*) from reading attention (*New Unread / Completed Unread / Read*).
-  - `07:12` **In-Place Live Interaction**: Intercepts `write_to_file`, inspects code diffs, and approves file modifications directly in the original process.
-  - `10:30` **Triage & Archiving**: One-click mark read and smooth card stowing; automatically wakes up when new logs arrive.
-  - `13:12` **Local-First & Open Source**: Strict loopback security (`127.0.0.1`), zero data leakage, and MIT licensed.
-- **Multilingual Support**: Toggle between 🇺🇸 **English**, 🇨🇳 **简体中文**, 🇭🇰 **繁體中文**, and 🇯🇵 **日本語** anytime directly in the player.
-- **Export Options**: Record 1080p 60 FPS videos (WebM/MP4) or capture high-resolution snapshots directly from the player controls.
-
----
-
 ## 🌟 Key Features
 
 - 🔍 **Zero-Config Auto Discovery**: Out of the box, Agent Board scans `%USERPROFILE%\.codex\sessions`, `.claude\projects`, and Antigravity native logs. No manual imports or configuration needed.
