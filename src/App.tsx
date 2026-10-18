@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Provider, SessionList, SessionView } from '../shared/types.js';
-import { request, withRemoteAuthUrl } from './api.js';
+import { getRemoteToken, request, saveLanOrigin, withRemoteAuthUrl } from './api.js';
 import { SessionCard } from './SessionCard.js';
 import { AgentLogo } from './AgentLogo.js';
 import { NewSessionModal } from './NewSessionModal.js';
 import { RemoteControlModal } from './RemoteControlModal.js';
+import { PwaInstallModal } from './PwaInstallModal.js';
 import { ThemeSwitcher } from './ThemeSwitcher.js';
 import { I18nProvider, LanguageSwitcher, useI18n } from './i18n/index.js';
 import { isSoundEnabled, setSoundEnabled, playSound } from './sound.js';
@@ -61,12 +62,15 @@ function BoardApp() {
   const [lastActiveCwd, setLastActiveCwd] = useState<string>('');
   const [remoteModalOpen, setRemoteModalOpen] = useState(false);
   const [remoteTargetSession, setRemoteTargetSession] = useState<SessionView | null>(null);
+  const [pwaModalOpen, setPwaModalOpen] = useState(false);
   const [deferredPwaPrompt, setDeferredPwaPrompt] = useState<any>(null);
+  const [isStartingHttps, setIsStartingHttps] = useState(false);
+  const [pwaInstallError, setPwaInstallError] = useState('');
   const [showPwaBanner, setShowPwaBanner] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     try {
       if (isRunningStandalonePwa()) return false;
-      if (localStorage.getItem('agent_board_pwa_dismissed') === '1') return false;
+      if (localStorage.getItem('agent_board_pwa_dismissed_v2') === '1') return false;
       const isRemoteHost =
         window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost';
       const isMobileScreen = window.matchMedia('(max-width: 768px)').matches;
@@ -80,12 +84,27 @@ function BoardApp() {
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
       setDeferredPwaPrompt(e);
-      if (!isRunningStandalonePwa() && localStorage.getItem('agent_board_pwa_dismissed') !== '1') {
+      if (!isRunningStandalonePwa() && localStorage.getItem('agent_board_pwa_dismissed_v2') !== '1') {
         setShowPwaBanner(true);
       }
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
+
+  // Only open the 1-click confirmation sheet automatically when redirected via ?autoInstall=1
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('autoInstall') === '1') {
+        url.searchParams.delete('autoInstall');
+        window.history.replaceState(null, '', url.toString());
+        if (!isRunningStandalonePwa()) {
+          setPwaModalOpen(true);
+        }
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -323,21 +342,80 @@ function BoardApp() {
   const handleDismissPwaBanner = () => {
     setShowPwaBanner(false);
     try {
-      localStorage.setItem('agent_board_pwa_dismissed', '1');
+      localStorage.setItem('agent_board_pwa_dismissed_v2', '1');
     } catch {}
   };
 
-  const handleInstallPwa = async () => {
+  const handleTriggerNativeInstall = async (): Promise<boolean> => {
     if (deferredPwaPrompt && typeof deferredPwaPrompt.prompt === 'function') {
       try {
         await deferredPwaPrompt.prompt();
         setDeferredPwaPrompt(null);
         setShowPwaBanner(false);
-        return;
+        setPwaModalOpen(false);
+        return true;
       } catch {}
     }
-    setRemoteTargetSession(null);
-    setRemoteModalOpen(true);
+    return false;
+  };
+
+  const handleStartHttpsInstall = async () => {
+    if (isStartingHttps) return;
+    setIsStartingHttps(true);
+    setPwaInstallError('');
+    playSound('click');
+    try {
+      let res = await request<{
+        tunnel: { status: string; url: string | null; error: string | null };
+        token?: string;
+        primaryLanUrl?: string | null;
+        customUrl?: string | null;
+      }>('/api/remote-control', {
+        action: 'startTunnel',
+      });
+      const deadline = Date.now() + 14000;
+      while (res.tunnel.status === 'starting' && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 700));
+        res = await request('/api/remote-control');
+      }
+      if (res.tunnel.status === 'running' && res.tunnel.url) {
+        const lanOrigin =
+          res.customUrl || res.primaryLanUrl || window.location.origin;
+        saveLanOrigin(lanOrigin);
+        const target = new URL(res.tunnel.url);
+        const currentParams = new URLSearchParams(window.location.search);
+        const rc = getRemoteToken() || currentParams.get('rc') || res.token || '';
+        if (rc) target.searchParams.set('rc', rc);
+        const sessionParam = currentParams.get('session');
+        if (sessionParam) target.searchParams.set('session', sessionParam);
+        if (lanOrigin) target.searchParams.set('lan', lanOrigin);
+        target.searchParams.set('autoInstall', '1');
+        window.location.href = target.toString();
+        return;
+      }
+      throw new Error(res.tunnel.error || '无法开启 HTTPS 安全安装通道');
+    } catch (err) {
+      setPwaInstallError((err as Error).message || '开启 HTTPS 通道失败');
+      setPwaModalOpen(true);
+    } finally {
+      setIsStartingHttps(false);
+    }
+  };
+
+  const handleInstallPwa = async () => {
+    playSound('click');
+    if (await handleTriggerNativeInstall()) {
+      return;
+    }
+    if (typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent || '')) {
+      window.location.href = withRemoteAuthUrl('/api/pwa/install.mobileconfig');
+      return;
+    }
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      await handleStartHttpsInstall();
+      return;
+    }
+    setPwaModalOpen(true);
   };
 
   return (
@@ -389,26 +467,31 @@ function BoardApp() {
       </header>
       {showPwaBanner && (
         <div className={styles.pwaBanner} role="region" aria-label={t.remoteControl.pwaBannerTitle}>
-          <div className={styles.pwaBannerText}>
+          <div
+            className={styles.pwaBannerText}
+            onClick={() => void handleInstallPwa()}
+            style={{ cursor: 'pointer' }}
+          >
             <strong>📲 {t.remoteControl.pwaBannerTitle}</strong>
             <span>{t.remoteControl.pwaBannerDesc}</span>
           </div>
           <div className={styles.pwaBannerActions}>
-            {deferredPwaPrompt && (
-              <button
-                type="button"
-                className={styles.pwaBannerInstall}
-                onClick={() => void handleInstallPwa()}
-              >
-                {t.remoteControl.pwaBannerInstallBtn}
-              </button>
-            )}
+            <button
+              type="button"
+              className={styles.pwaBannerInstall}
+              disabled={isStartingHttps}
+              onClick={() => void handleInstallPwa()}
+            >
+              {isStartingHttps ? '⏳ 正在准备…' : `📲 ${t.remoteControl.pwaBannerInstallBtn}`}
+            </button>
             <button
               type="button"
               className={styles.pwaBannerDismiss}
               onClick={handleDismissPwaBanner}
+              aria-label={t.remoteControl.pwaBannerDismiss}
+              title={t.remoteControl.pwaBannerDismiss}
             >
-              {t.remoteControl.pwaBannerDismiss}
+              ✕
             </button>
           </div>
         </div>
@@ -617,9 +700,24 @@ function BoardApp() {
         isOpen={remoteModalOpen}
         sessionId={remoteTargetSession?.id}
         sessionTitle={remoteTargetSession ? tr(remoteTargetSession.title) : undefined}
+        onOpenPwaInstall={() => {
+          setRemoteModalOpen(false);
+          void handleInstallPwa();
+        }}
         onClose={() => {
           setRemoteModalOpen(false);
           setRemoteTargetSession(null);
+        }}
+      />
+      <PwaInstallModal
+        isOpen={pwaModalOpen}
+        hasNativePrompt={!!deferredPwaPrompt}
+        isStartingHttps={isStartingHttps}
+        installError={pwaInstallError}
+        onTriggerNativeInstall={handleTriggerNativeInstall}
+        onStartHttpsInstall={handleStartHttpsInstall}
+        onClose={() => {
+          setPwaModalOpen(false);
         }}
       />
     </main>

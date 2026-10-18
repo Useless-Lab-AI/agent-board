@@ -37,11 +37,13 @@ export function RemoteControlModal({
   isOpen,
   sessionId,
   sessionTitle,
+  onOpenPwaInstall,
   onClose,
 }: {
   isOpen: boolean;
   sessionId?: string;
   sessionTitle?: string;
+  onOpenPwaInstall?: () => void;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -193,7 +195,7 @@ export function RemoteControlModal({
   };
 
   const handleStartTunnel = async () => {
-    if (!status || status.isRemoteClient || busy) return;
+    if (!status || busy) return;
     setBusy(true);
     playSound('click');
     try {
@@ -357,16 +359,14 @@ export function RemoteControlModal({
                           {status.tunnel.error}
                         </p>
                       )}
-                      {!status?.isRemoteClient && (
-                        <button
-                          type="button"
-                          className={styles.newSessionSubmitBtn}
-                          disabled={busy}
-                          onClick={() => void handleStartTunnel()}
-                        >
-                          {t.remoteControl.tunnelStartBtn}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className={styles.newSessionSubmitBtn}
+                        disabled={busy}
+                        onClick={() => void handleStartTunnel()}
+                      >
+                        {t.remoteControl.tunnelStartBtn}
+                      </button>
                     </>
                   )}
                 </div>
@@ -510,14 +510,22 @@ export function RemoteControlModal({
               </div>
             )}
 
-            {/* PWA Home Screen Installation Guide */}
-            <details className={styles.remotePwaGuide}>
-              <summary>{t.remoteControl.pwaGuideTitle}</summary>
-              <ul>
-                <li>{t.remoteControl.pwaIosStep}</li>
-                <li>{t.remoteControl.pwaAndroidStep}</li>
-              </ul>
-            </details>
+            {/* 1-Click PWA Home Screen Installation */}
+            {onOpenPwaInstall && (
+              <button
+                type="button"
+                className={styles.pwaNativeInstallBtn}
+                onClick={() => {
+                  playSound('click');
+                  onOpenPwaInstall();
+                }}
+              >
+                <span>📲</span>
+                <span>
+                  {t.remoteControl.pwaBannerTitle} · {t.remoteControl.pwaBannerInstallBtn}
+                </span>
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -265,7 +265,7 @@ export class RemoteControlManager {
       primaryLanUrl,
       customUrl: this.getCustomUrl(),
       tunnel: { ...this.tunnelState },
-      ...(isRemoteClient ? {} : { token: this.getToken() }),
+      token: this.getToken(),
     };
   }
 
@@ -358,7 +358,7 @@ export class RemoteControlManager {
       const handleOutput = (chunk: Buffer) => {
         const text = chunk.toString('utf8');
         const match = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
-        if (match && this.tunnelState.status !== 'running') {
+        if (match && this.tunnelState.url !== match[0]) {
           this.tunnelState = {
             status: 'running',
             url: match[0],
@@ -449,7 +449,7 @@ export class RemoteControlManager {
       const handleOutput = (chunk: Buffer) => {
         const text = chunk.toString('utf8');
         const match = text.match(/https:\/\/[a-z0-9-]+\.lhr\.life/i);
-        if (match && this.tunnelState.status !== 'running') {
+        if (match && this.tunnelState.url !== match[0]) {
           this.tunnelState = {
             status: 'running',
             url: match[0],

@@ -40,28 +40,27 @@ export function guard(
   const isLocalDirect = isLoopbackSocket && !isForwarded && req.headers.host === authority;
 
   if (isLocalDirect) {
-    if (req.headers.origin && req.headers.origin !== `http://${authority}`) {
+    if (
+      req.headers.origin &&
+      req.headers.origin !== `http://${authority}` &&
+      !remoteVerify?.(req)
+    ) {
       throw new HttpError(403, '只允许本机同源访问');
+    }
+    if (
+      req.headers['sec-fetch-site'] === 'cross-site' &&
+      req.url?.startsWith('/api/') &&
+      !remoteVerify?.(req)
+    ) {
+      throw new HttpError(403, '拒绝跨站请求');
     }
   } else {
     const host = req.headers.host;
     if (!host || !remoteVerify?.(req)) {
       throw new HttpError(403, '只允许本机同源访问');
     }
-    if (req.headers.origin) {
-      let originHost = '';
-      try {
-        originHost = new URL(req.headers.origin).host;
-      } catch {
-        throw new HttpError(403, '只允许本机同源访问');
-      }
-      if (originHost !== host) {
-        throw new HttpError(403, '只允许本机同源访问');
-      }
-    }
   }
 
-  if (req.headers['sec-fetch-site'] === 'cross-site') throw new HttpError(403, '拒绝跨站请求');
   if (
     req.method === 'POST' &&
     (req.headers['x-agent-board'] !== '1' ||

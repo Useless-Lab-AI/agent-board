@@ -22,6 +22,56 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+export function joinSpeechText(base: string, addition: string): string {
+  if (!base) return addition;
+  if (!addition) return base;
+  if (
+    /[\s\n，。！？、；：,.!?;:]$/.test(base) ||
+    /^[\s\n，。！？、；：,.!?;:]/.test(addition)
+  ) {
+    return `${base}${addition}`;
+  }
+  const lastChar = base[base.length - 1];
+  const firstChar = addition[0];
+  const isCjkBoundary =
+    /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(lastChar) ||
+    /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(firstChar);
+  return isCjkBoundary ? `${base}${addition}` : `${base} ${addition}`;
+}
+
+export function mergeSpeechSegments(segments: string[]): string {
+  let acc = '';
+  for (const raw of segments) {
+    const seg = raw.trim();
+    if (!seg) continue;
+    if (!acc) {
+      acc = seg;
+      continue;
+    }
+    if (seg === acc || acc.endsWith(seg)) {
+      continue;
+    }
+    if (seg.startsWith(acc)) {
+      acc = seg;
+      continue;
+    }
+    let overlapLen = 0;
+    const maxOverlap = Math.min(acc.length, seg.length);
+    for (let k = maxOverlap; k >= 2; k--) {
+      if (acc.slice(acc.length - k) === seg.slice(0, k)) {
+        overlapLen = k;
+        break;
+      }
+    }
+    if (overlapLen > 0) {
+      acc = `${acc}${seg.slice(overlapLen)}`;
+    } else {
+      acc = joinSpeechText(acc, seg);
+    }
+  }
+  return acc;
+}
+
 function AttachmentThumb({ att }: { att: AttachedFileItem }) {
   const isImage =
     att.mimeType?.startsWith('image/') ||
@@ -288,10 +338,47 @@ export function ChatComposer({
     'ja-JP': 'ja-JP',
   };
 
+  const wantListeningRef = useRef(false);
+  const baseTextRef = useRef('');
+  const committedVoiceRef = useRef('');
+  const cycleVoiceRef = useRef('');
+  const lastVoiceOutputRef = useRef('');
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!wantListeningRef.current) return;
+    if (value !== lastVoiceOutputRef.current) {
+      // User manually edited the textarea or cleared/submitted the message while listening
+      baseTextRef.current = value;
+      committedVoiceRef.current = '';
+      cycleVoiceRef.current = '';
+      lastVoiceOutputRef.current = value;
+    }
+  }, [value]);
+
+  const stopListening = () => {
+    wantListeningRef.current = false;
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+    if (recognitionRef.current) {
+      const rec = recognitionRef.current;
+      recognitionRef.current = null;
+      try {
+        rec.onresult = null;
+        rec.onerror = null;
+        rec.onend = null;
+        rec.stop();
+      } catch {}
+    }
+    cycleVoiceRef.current = '';
+    setIsListening(false);
+  };
+
   const toggleListening = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+    if (isListening || wantListeningRef.current) {
+      stopListening();
       return;
     }
 
@@ -305,54 +392,116 @@ export function ChatComposer({
       return;
     }
 
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = speechLangMap[locale] || 'zh-CN';
+    wantListeningRef.current = true;
+    baseTextRef.current = valueRef.current;
+    committedVoiceRef.current = '';
+    cycleVoiceRef.current = '';
+    lastVoiceOutputRef.current = valueRef.current;
 
-      let accumulated = '';
+    const isMobile =
+      typeof navigator !== 'undefined' &&
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
 
-      recognition.onstart = () => {
-        setIsListening(true);
-      };
+    const startCycle = () => {
+      if (!wantListeningRef.current) return;
+      if (restartTimerRef.current) {
+        clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = null;
+      }
 
-      recognition.onresult = (event: any) => {
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const item = event.results[i];
-          if (item.isFinal) {
-            accumulated += item[0].transcript;
-          } else {
-            interim += item[0].transcript;
+      try {
+        const recognition = new SpeechRecognition();
+        // On mobile browsers (especially Android Chrome), continuous=true causes cumulative
+        // duplicate transcripts across result items. Using single-utterance mode with automatic
+        // seamless restart in onend eliminates mobile duplication while keeping listening active.
+        recognition.continuous = !isMobile;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+        recognition.lang = speechLangMap[locale] || 'zh-CN';
+
+        recognition.onstart = () => {
+          if (wantListeningRef.current) {
+            setIsListening(true);
           }
-        }
-        if (accumulated || interim) {
-          const prev = valueRef.current;
-          const prefix =
-            prev && !prev.endsWith(' ') && !prev.endsWith('\n') ? `${prev} ` : prev;
-          onChange(`${prefix}${accumulated}${interim}`);
-          accumulated = '';
-        }
-      };
+        };
 
-      recognition.onerror = (e: any) => {
-        setIsListening(false);
-        if (e.error !== 'no-speech') {
-          onError?.(`${t.interaction.voiceUnsupported}: ${e.error}`);
-        }
-      };
+        recognition.onresult = (event: any) => {
+          if (!wantListeningRef.current) return;
+          const segments: string[] = [];
+          const results = event?.results;
+          if (results && typeof results.length === 'number') {
+            for (let i = 0; i < results.length; i++) {
+              const transcript = String(results[i]?.[0]?.transcript ?? '').trim();
+              if (transcript) {
+                segments.push(transcript);
+              }
+            }
+          }
+          const cycleText = mergeSpeechSegments(segments);
+          cycleVoiceRef.current = cycleText;
 
-      recognition.onend = () => {
-        setIsListening(false);
-      };
+          const combinedVoice = mergeSpeechSegments([
+            committedVoiceRef.current,
+            cycleText,
+          ]);
+          const nextValue = joinSpeechText(baseTextRef.current, combinedVoice);
+          if (nextValue !== valueRef.current) {
+            lastVoiceOutputRef.current = nextValue;
+            onChange(nextValue);
+          }
+        };
 
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (err) {
-      setIsListening(false);
-      onError?.((err as Error).message);
-    }
+        recognition.onerror = (e: any) => {
+          const errCode = String(e?.error || '');
+          if (errCode === 'aborted') {
+            return;
+          }
+          if (errCode === 'no-speech') {
+            // Do not abort listening on silence; onend will seamlessly restart the cycle
+            return;
+          }
+          stopListening();
+          if (
+            (errCode === 'not-allowed' || errCode === 'service-not-allowed') &&
+            typeof window !== 'undefined' &&
+            !window.isSecureContext
+          ) {
+            onError?.(
+              '手机浏览器限制：HTTP 局域网连接下无法调用麦克风，请使用输入法自带语音输入或切换 HTTPS 通道',
+            );
+            return;
+          }
+          onError?.(`${t.interaction.voiceUnsupported}: ${errCode}`);
+        };
+
+        recognition.onend = () => {
+          if (cycleVoiceRef.current) {
+            committedVoiceRef.current = mergeSpeechSegments([
+              committedVoiceRef.current,
+              cycleVoiceRef.current,
+            ]);
+            cycleVoiceRef.current = '';
+          }
+          if (wantListeningRef.current) {
+            restartTimerRef.current = setTimeout(() => {
+              if (wantListeningRef.current) {
+                startCycle();
+              }
+            }, 120);
+          } else {
+            setIsListening(false);
+          }
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+      } catch (err) {
+        stopListening();
+        onError?.((err as Error).message);
+      }
+    };
+
+    startCycle();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -368,11 +517,7 @@ export function ChatComposer({
 
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch {}
-      }
+      stopListening();
       if (!controlledAttachments) {
         attachmentsRef.current.forEach((a) => {
           if (a.previewUrl?.startsWith('blob:')) {

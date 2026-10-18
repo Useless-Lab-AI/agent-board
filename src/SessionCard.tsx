@@ -46,6 +46,56 @@ function resolveProjectDisplay(cwd?: string): { name: string; path: string } | n
   return { name: base || cleanPath, path: cleanPath };
 }
 
+function extractPreviewSnippet(
+  items: DisplayEvent[] | undefined,
+  fallbackReason: string,
+): { roleIcon: string; text: string } {
+  if (items && items.length > 0) {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const ev = items[i];
+      if (!ev || !ev.text || !ev.text.trim()) continue;
+      if (ev.role === 'notice') continue;
+      let cleaned = ev.text
+        .replace(/```[\s\S]*?```/g, ' [代码] ')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, '[图片]')
+        .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+        .replace(/^[#>*\-\d.]+\s+/gm, '')
+        .replace(/[*_~]+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!cleaned) continue;
+      if (cleaned.length > 100) {
+        cleaned = cleaned.slice(0, 100) + '…';
+      }
+      const roleIcon = ev.role === 'user' ? '👤' : ev.role === 'tool' ? '🔧' : '🤖';
+      return { roleIcon, text: cleaned };
+    }
+  }
+  return { roleIcon: '', text: fallbackReason };
+}
+
+function formatShortTime(updatedAt: number, locale: string): string {
+  if (!updatedAt || updatedAt <= 0) return '';
+  const diffSec = Math.floor((Date.now() - updatedAt) / 1000);
+  const isEn = locale === 'en-US';
+  if (diffSec < 60) return isEn ? 'now' : '刚刚';
+  if (diffSec < 3600) {
+    const mins = Math.floor(diffSec / 60);
+    return isEn ? `${mins}m` : `${mins}分钟前`;
+  }
+  const d = new Date(updatedAt);
+  const now = new Date();
+  if (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  ) {
+    return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function EventContent({ event }: { event: DisplayEvent }) {
   const { t, tr, formatTime } = useI18n();
 
@@ -450,7 +500,36 @@ export function SessionCard({
   const toggleExpand = (next: boolean) => {
     setExpanded(next);
     onExpandChange?.(next);
+    if (typeof window !== 'undefined') {
+      try {
+        const u = new URL(window.location.href);
+        if (next && window.matchMedia('(max-width: 768px)').matches) {
+          if (u.searchParams.get('session') !== session.id) {
+            u.searchParams.set('session', session.id);
+            window.history.pushState({ agentBoardSession: session.id }, '', u.toString());
+          }
+        } else if (!next && u.searchParams.get('session') === session.id) {
+          u.searchParams.delete('session');
+          window.history.replaceState(null, '', u.toString());
+        }
+      } catch {}
+    }
   };
+
+  useEffect(() => {
+    if (!expanded || typeof window === 'undefined') return;
+    const handlePopState = () => {
+      try {
+        const currentSession = new URLSearchParams(window.location.search).get('session');
+        if (currentSession !== session.id) {
+          setExpanded(false);
+          onExpandChange?.(false);
+        }
+      } catch {}
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [expanded, session.id, onExpandChange]);
 
   const renderHeader = (isModal = false) => (
     <header className={styles.cardHeader}>
@@ -458,7 +537,10 @@ export function SessionCard({
         <button
           type="button"
           className={styles.mobileBackBtn}
-          onClick={() => toggleExpand(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleExpand(false);
+          }}
           aria-label={t.card.backToBoard}
         >
           {t.card.backToBoard}
@@ -499,7 +581,7 @@ export function SessionCard({
           </p>
         </div>
       </div>
-      <div className={styles.cardHeaderActions}>
+      <div className={styles.cardHeaderActions} onClick={(e) => e.stopPropagation()}>
         {onOpenRemote && (
           <button
             type="button"
@@ -527,6 +609,8 @@ export function SessionCard({
   );
 
   const activity = session.execution === 'UNKNOWN' ? session.activity : undefined;
+  const previewInfo = extractPreviewSnippet(page?.items, sessionReason);
+  const updatedTimeStr = formatShortTime(session.updatedAt, locale);
   const badges = (
     <div className={styles.badges}>
       <span
@@ -714,9 +798,55 @@ export function SessionCard({
         data-session-id={session.id}
         data-order={session.order}
         data-execution={session.execution}
+        data-attention={session.attention}
         data-archiving={isArchiving}
+        onClick={(e) => {
+          if (typeof window === 'undefined') return;
+          if (!window.matchMedia('(max-width: 768px)').matches) return;
+          const target = e.target as HTMLElement | null;
+          if (target?.closest('button, a, input, select, textarea')) return;
+          playSound('click');
+          toggleExpand(true);
+        }}
       >
         {renderHeader(false)}
+        <div className={styles.mobileSessionSummary}>
+          <p className={styles.mobileSessionPreview}>
+            {previewInfo.roleIcon && (
+              <span className={styles.mobilePreviewRole}>{previewInfo.roleIcon}</span>
+            )}
+            <span>{previewInfo.text}</span>
+          </p>
+          <div className={styles.mobileSessionMetaRow}>
+            <div className={styles.mobileSessionBadges}>
+              <span
+                className={styles.execution}
+                data-state={session.execution}
+                data-activity={activity?.label}
+              >
+                <i />
+                {activity
+                  ? activity.label === '近期有输出'
+                    ? t.card.recentOutput
+                    : t.card.noRecentUpdate
+                  : executionLabel[session.execution]}
+              </span>
+              {(session.attention === 'UNREAD_COMPLETION' ||
+                session.attention === 'UNREAD_OUTPUT' ||
+                newlyDiscovered) && (
+                <span className={styles.attention} data-state={session.attention}>
+                  {newlyDiscovered ? t.states.newDiscovered : attentionLabel[session.attention]}
+                </span>
+              )}
+            </div>
+            <span className={styles.mobileEnterHint}>
+              {updatedTimeStr && <time>{updatedTimeStr}</time>}
+              <span className={styles.mobileChevron} aria-hidden="true">
+                ›
+              </span>
+            </span>
+          </div>
+        </div>
         {badges}
         {body()}
         {controls()}

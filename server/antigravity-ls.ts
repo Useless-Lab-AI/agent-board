@@ -1,6 +1,12 @@
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
+import { getAntigravitySummaries } from './antigravity-meta.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -11,6 +17,7 @@ export interface AntigravityCredentials {
 
 let cachedCredentials: AntigravityCredentials | null = null;
 let lastCheckTime = 0;
+let envCredsInvalidated = false;
 let inflightPromise: Promise<AntigravityCredentials | null> | null = null;
 const CACHE_TTL_MS = 120_000;
 
@@ -242,7 +249,11 @@ export async function resolveAntigravityCredentials(
   runnerExe?: string,
 ): Promise<AntigravityCredentials | null> {
   // 1. If explicit environment variables already set (e.g. running inside Antigravity terminal)
-  if (process.env.ANTIGRAVITY_LS_ADDRESS && process.env.ANTIGRAVITY_CSRF_TOKEN) {
+  if (
+    !envCredsInvalidated &&
+    process.env.ANTIGRAVITY_LS_ADDRESS &&
+    process.env.ANTIGRAVITY_CSRF_TOKEN
+  ) {
     return {
       address: process.env.ANTIGRAVITY_LS_ADDRESS,
       csrfToken: process.env.ANTIGRAVITY_CSRF_TOKEN,
@@ -267,4 +278,328 @@ export async function resolveAntigravityCredentials(
 export function invalidateAntigravityCredentialsCache(): void {
   cachedCredentials = null;
   lastCheckTime = 0;
+  envCredsInvalidated = true;
+}
+
+function normalizeComparePath(p: string): string {
+  if (!p || typeof p !== 'string') return '';
+  try {
+    const resolved = path.resolve(p.trim());
+    const clean = resolved.replace(/[/\\]+$/, '');
+    return process.platform === 'win32'
+      ? clean.replace(/\//g, '\\').toLowerCase()
+      : clean.replace(/\\/g, '/');
+  } catch {
+    return p.trim().toLowerCase();
+  }
+}
+
+function uriToLocalPath(uri: string): string {
+  if (!uri || typeof uri !== 'string') return '';
+  const trimmed = uri.trim();
+  if (!trimmed) return '';
+  try {
+    if (trimmed.startsWith('file://')) {
+      return fileURLToPath(decodeURIComponent(trimmed));
+    }
+    return trimmed;
+  } catch {
+    return trimmed.replace(/^file:\/\/\/?/i, '');
+  }
+}
+
+function localPathToFolderUri(localPath: string): string {
+  const resolved = path.resolve(localPath);
+  const rawHref = pathToFileURL(resolved).href;
+  return rawHref.replace(
+    /^file:\/\/\/([A-Za-z]):/,
+    (_, d: string) => `file:///${d.toLowerCase()}%3A`,
+  );
+}
+
+async function callLanguageServerRpc(
+  creds: AntigravityCredentials,
+  method: string,
+  payload: Record<string, unknown> = {},
+): Promise<any | null> {
+  const [host, portStr] = creds.address.split(':');
+  const port = Number(portStr);
+  if (!host || !port) return null;
+
+  const body = JSON.stringify({
+    metadata: {
+      ideName: 'antigravity',
+      extensionName: 'antigravity',
+      locale: 'en',
+    },
+    ...payload,
+  });
+
+  return new Promise<any | null>((resolve) => {
+    const req = http.request(
+      {
+        hostname: host === 'localhost' ? '127.0.0.1' : host,
+        port,
+        path: `/exa.language_server_pb.LanguageServerService/${method}`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          'Connect-Protocol-Version': '1',
+          'X-Codeium-Csrf-Token': creds.csrfToken,
+        },
+        timeout: 2500,
+      },
+      (res) => {
+        let buf = '';
+        res.on('data', (c) => (buf += c));
+        res.on('end', () => {
+          if (res.statusCode !== 200) {
+            resolve(null);
+            return;
+          }
+          try {
+            resolve(JSON.parse(buf));
+          } catch {
+            resolve(null);
+          }
+        });
+      },
+    );
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(null);
+    });
+    req.write(body);
+    req.end();
+  });
+}
+
+export async function sendAntigravityUserMessage(
+  creds: AntigravityCredentials,
+  cascadeId: string,
+  text: string,
+): Promise<{ ok: boolean; error?: string; statusCode?: number }> {
+  const [host, portStr] = creds.address.split(':');
+  const port = Number(portStr);
+  if (!host || !port) {
+    return { ok: false, error: `Invalid LanguageServer address: ${creds.address}` };
+  }
+
+  const body = JSON.stringify({
+    metadata: {
+      ideName: 'antigravity',
+      extensionName: 'antigravity',
+      locale: 'en',
+    },
+    cascadeId,
+    items: [{ text }],
+  });
+
+  return new Promise((resolve) => {
+    const req = http.request(
+      {
+        hostname: host === 'localhost' ? '127.0.0.1' : host,
+        port,
+        path: '/exa.language_server_pb.LanguageServerService/SendUserCascadeMessage',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          'Connect-Protocol-Version': '1',
+          'X-Codeium-Csrf-Token': creds.csrfToken,
+        },
+        timeout: 20000,
+      },
+      (res) => {
+        let buf = '';
+        res.on('data', (c) => (buf += c));
+        res.on('end', () => {
+          if (res.statusCode === 200) {
+            resolve({ ok: true, statusCode: 200 });
+            return;
+          }
+          let errMsg = buf.trim();
+          try {
+            const parsed = JSON.parse(buf);
+            if (parsed?.message) errMsg = String(parsed.message);
+            else if (parsed?.error) errMsg = String(parsed.error);
+          } catch {}
+          resolve({
+            ok: false,
+            statusCode: res.statusCode,
+            error: errMsg || `HTTP ${res.statusCode}`,
+          });
+        });
+      },
+    );
+    req.on('error', (err) => {
+      resolve({ ok: false, error: err.message || 'connection error' });
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ ok: false, error: 'timeout' });
+    });
+    req.write(body);
+    req.end();
+  });
+}
+
+export async function resolveAntigravityProjectId(
+  targetCwd: string,
+  antigravityHome: string,
+  creds?: AntigravityCredentials | null,
+): Promise<string | null> {
+  const candidates: Array<{ projectId: string; folderPath: string }> = [];
+  const seenProjectIds = new Set<string>();
+
+  const collectFromProjectObj = (proj: any) => {
+    if (!proj || typeof proj.id !== 'string' || !proj.id) return;
+    seenProjectIds.add(proj.id);
+    if (proj.id === 'outside-of-project') return;
+    const resources = proj.projectResources?.resources;
+    if (!Array.isArray(resources)) return;
+    for (const res of resources) {
+      const fUri = res?.folderUri || res?.gitFolder?.folderUri;
+      if (typeof fUri === 'string' && fUri.trim()) {
+        const localPath = uriToLocalPath(fUri);
+        if (localPath) {
+          candidates.push({ projectId: proj.id, folderPath: localPath });
+        }
+      }
+    }
+  };
+
+  // 1. Read local ~/.gemini/config/projects/*.json files
+  const configDirs = Array.from(
+    new Set([
+      antigravityHome ? path.join(path.dirname(antigravityHome), 'config', 'projects') : '',
+      path.join(os.homedir(), '.gemini', 'config', 'projects'),
+    ]),
+  ).filter(Boolean);
+
+  for (const dir of configDirs) {
+    try {
+      if (!existsSync(dir)) continue;
+      for (const entry of readdirSync(dir)) {
+        if (!entry.endsWith('.json')) continue;
+        try {
+          const parsed = JSON.parse(readFileSync(path.join(dir, entry), 'utf8'));
+          collectFromProjectObj(parsed);
+        } catch {}
+      }
+    } catch {}
+  }
+
+  // 2. Query live LanguageServer ListProjects + ReadProjects if credentials available
+  if (creds) {
+    try {
+      const listRes = await callLanguageServerRpc(creds, 'ListProjects');
+      const ids: string[] = Array.isArray(listRes?.projectIds) ? listRes.projectIds : [];
+      for (const id of ids) {
+        if (typeof id === 'string' && id) seenProjectIds.add(id);
+      }
+      if (ids.length > 0) {
+        const readRes = await callLanguageServerRpc(creds, 'ReadProjects', { ids });
+        const projects: any[] = Array.isArray(readRes?.projects) ? readRes.projects : [];
+        for (const p of projects) {
+          collectFromProjectObj(p);
+        }
+      }
+    } catch {}
+  }
+
+  // 3. Also check conversation_summaries.db for historical workspace -> projectId mappings
+  if (antigravityHome) {
+    try {
+      const summaries = getAntigravitySummaries(antigravityHome);
+      for (const s of summaries.values()) {
+        if (s.projectId) {
+          seenProjectIds.add(s.projectId);
+          if (s.projectId !== 'outside-of-project' && s.cwd) {
+            candidates.push({ projectId: s.projectId, folderPath: s.cwd });
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Match targetCwd against collected candidates
+  const targetNorm = normalizeComparePath(targetCwd);
+  if (targetNorm) {
+    const sep = process.platform === 'win32' ? '\\' : '/';
+    // 4a. Exact match
+    for (const c of candidates) {
+      if (normalizeComparePath(c.folderPath) === targetNorm) {
+        return c.projectId;
+      }
+    }
+
+    // 4b. Target is a subdirectory of a registered project (pick longest parent path)
+    let bestParent: { projectId: string; len: number } | null = null;
+    for (const c of candidates) {
+      const cNorm = normalizeComparePath(c.folderPath);
+      if (cNorm && targetNorm.startsWith(cNorm + sep)) {
+        if (!bestParent || cNorm.length > bestParent.len) {
+          bestParent = { projectId: c.projectId, len: cNorm.length };
+        }
+      }
+    }
+    if (bestParent) {
+      return bestParent.projectId;
+    }
+
+    // 4c. Target is a parent directory of a registered project
+    let bestChild: { projectId: string; len: number } | null = null;
+    for (const c of candidates) {
+      const cNorm = normalizeComparePath(c.folderPath);
+      if (cNorm && cNorm.startsWith(targetNorm + sep)) {
+        if (!bestChild || cNorm.length < bestChild.len) {
+          bestChild = { projectId: c.projectId, len: cNorm.length };
+        }
+      }
+    }
+    if (bestChild) {
+      return bestChild.projectId;
+    }
+  }
+
+  // 5. If targetCwd is a valid directory not yet registered as a project in Antigravity, register it via CreateProject
+  if (creds && targetCwd && existsSync(targetCwd)) {
+    try {
+      const newProjectId = randomUUID();
+      const folderName = path.basename(path.resolve(targetCwd)) || 'workspace';
+      const createRes = await callLanguageServerRpc(creds, 'CreateProject', {
+        project: {
+          id: newProjectId,
+          name: folderName,
+          projectResources: {
+            resources: [
+              {
+                folderUri: localPathToFolderUri(targetCwd),
+              },
+            ],
+          },
+          settings: {},
+          isWorkspaceOnly: false,
+        },
+      });
+      if (createRes !== null) {
+        return newProjectId;
+      }
+    } catch {}
+  }
+
+  // 6. Fallback to env or any existing project ID
+  if (process.env.ANTIGRAVITY_PROJECT_ID) {
+    return process.env.ANTIGRAVITY_PROJECT_ID;
+  }
+  for (const pid of seenProjectIds) {
+    if (pid !== 'outside-of-project') return pid;
+  }
+  if (seenProjectIds.has('outside-of-project')) {
+    return 'outside-of-project';
+  }
+  return null;
 }

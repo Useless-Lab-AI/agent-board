@@ -7,7 +7,12 @@ import type { InteractionAttachment } from '../shared/interaction.js';
 import type { SessionTitles } from './session-titles.js';
 import { hash } from './security.js';
 import { getAgentApiRunner } from './antigravity-client.js';
-import { resolveAntigravityCredentials } from './antigravity-ls.js';
+import {
+  resolveAntigravityCredentials,
+  resolveAntigravityProjectId,
+  invalidateAntigravityCredentialsCache,
+  type AntigravityCredentials,
+} from './antigravity-ls.js';
 import { formatPromptWithAttachments } from './interaction.js';
 
 export interface CreateSessionOptions {
@@ -72,19 +77,11 @@ export async function createSession(
     }
 
     const isTestEnv = !!process.env.AGENT_BOARD_ANTIGRAVITY_HOME;
-    const creds = !isTestEnv ? await resolveAntigravityCredentials(runner.exe) : null;
+    let creds = !isTestEnv ? await resolveAntigravityCredentials(runner.exe) : null;
     if (!isTestEnv && !creds) {
       throw new Error(
         '未检测到 Antigravity 语言服务（language_server.exe），请确保 Antigravity 原客户端正在运行',
       );
-    }
-
-    const env: NodeJS.ProcessEnv = { ...process.env };
-    delete env.ANTIGRAVITY_SOURCE_METADATA;
-
-    if (creds) {
-      env.ANTIGRAVITY_LS_ADDRESS = creds.address;
-      env.ANTIGRAVITY_CSRF_TOKEN = creds.csrfToken;
     }
 
     const args = [...runner.argsPrefix, 'new-conversation'];
@@ -103,23 +100,84 @@ export async function createSession(
     }
     args.push(prompt || '新会话已开启，请向智能体提问');
 
-    const stdout = await new Promise<string>((resolve, reject) => {
-      execFile(
-        runner.exe,
-        args,
-        {
-          env,
-          cwd: targetCwd,
-          shell: runner.shell,
-          windowsHide: true,
-          timeout: 20000,
-        },
-        (err, out, stderr) => {
-          if (err) return reject(new Error(stderr || err.message));
-          resolve(out);
-        },
-      );
-    });
+    const executeNewConversation = async (
+      activeCreds: AntigravityCredentials | null,
+    ): Promise<string> => {
+      const env: NodeJS.ProcessEnv = { ...process.env };
+      delete env.ANTIGRAVITY_SOURCE_METADATA;
+      delete env.ANTIGRAVITY_CONVERSATION_ID;
+      delete env.ANTIGRAVITY_TRAJECTORY_ID;
+
+      if (activeCreds) {
+        env.ANTIGRAVITY_LS_ADDRESS = activeCreds.address;
+        env.ANTIGRAVITY_CSRF_TOKEN = activeCreds.csrfToken;
+      }
+
+      if (!isTestEnv) {
+        const targetProjectId = await resolveAntigravityProjectId(
+          targetCwd,
+          context.antigravityHome,
+          activeCreds,
+        );
+        if (targetProjectId) {
+          env.ANTIGRAVITY_PROJECT_ID = targetProjectId;
+        }
+      }
+
+      return new Promise<string>((resolve, reject) => {
+        execFile(
+          runner.exe,
+          args,
+          {
+            env,
+            cwd: targetCwd,
+            shell: runner.shell,
+            windowsHide: true,
+            timeout: 25000,
+          },
+          (err, out, stderr) => {
+            let parsedError: string | null = null;
+            if (out) {
+              try {
+                const parsed = JSON.parse(out);
+                if (parsed?.error) {
+                  parsedError = String(parsed.error);
+                }
+              } catch {}
+            }
+            if (err || parsedError) {
+              const message =
+                parsedError || stderr?.trim() || err?.message || '创建 Antigravity 会话失败';
+              return reject(new Error(message));
+            }
+            resolve(out);
+          },
+        );
+      });
+    };
+
+    let stdout: string;
+    try {
+      stdout = await executeNewConversation(creds);
+    } catch (firstErr: any) {
+      const msg = String(firstErr?.message ?? '');
+      if (
+        !isTestEnv &&
+        (msg.includes('Unavailable') ||
+          msg.includes('connection error') ||
+          msg.includes('EOF') ||
+          msg.includes('project_id'))
+      ) {
+        invalidateAntigravityCredentialsCache();
+        creds = await resolveAntigravityCredentials(runner.exe);
+        if (!creds) {
+          throw firstErr;
+        }
+        stdout = await executeNewConversation(creds);
+      } else {
+        throw firstErr;
+      }
+    }
 
     let conversationId = '';
     try {

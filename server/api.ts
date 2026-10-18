@@ -4,7 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { existsSync, readdirSync, realpathSync, statSync, watch, type FSWatcher } from 'node:fs';
 import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 import { contained, guard, hash, HttpError, jsonBody } from './security.js';
 import { Discovery, vectorOf } from './discovery.js';
 import { advanced, mergePosition, SessionStore } from './session-store.js';
@@ -444,12 +445,22 @@ function view(id: string): SessionView {
 }
 const server = createServer(async (req, res) => {
   try {
+    const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
+    const isPublicStaticAsset =
+      req.method === 'GET' &&
+      (url.pathname.startsWith('/assets/') ||
+        url.pathname === '/icon.svg' ||
+        url.pathname === '/apple-touch-icon.png' ||
+        url.pathname === '/manifest.webmanifest' ||
+        url.pathname === '/sw.js');
     const { isRemoteClient } = guard(req, port, (r) =>
-      remoteControl.verifyToken(extractRequestToken(r, port)),
+      isPublicStaticAsset
+        ? remoteControl.isEnabled()
+        : remoteControl.verifyToken(extractRequestToken(r, port)),
     );
     if (isRemoteClient) {
       const reqToken = extractRequestToken(req, port);
-      if (reqToken) {
+      if (reqToken && remoteControl.verifyToken(reqToken)) {
         res.setHeader(
           'Set-Cookie',
           `agent_board_rc=${encodeURIComponent(reqToken)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`,
@@ -462,9 +473,8 @@ const server = createServer(async (req, res) => {
     res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; font-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+      "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; font-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
     );
-    const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
     if (req.method === 'GET' && url.pathname === '/api/sessions') {
       if (!initialized) {
         res.end(
@@ -935,10 +945,15 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (req.method === 'POST' && url.pathname === '/api/remote-control') {
+      const body = await jsonBody(req);
       if (isRemoteClient) {
+        if (body.action === 'startTunnel') {
+          await remoteControl.startTunnel();
+          res.end(JSON.stringify(remoteControl.getStatus(true)));
+          return;
+        }
         throw new HttpError(403, '远程设备不可修改远程控制设置');
       }
-      const body = await jsonBody(req);
       if (typeof body.enabled === 'boolean') {
         remoteControl.setEnabled(body.enabled);
       }
@@ -956,6 +971,87 @@ const server = createServer(async (req, res) => {
         remoteControl.stopTunnel();
       }
       res.end(JSON.stringify(remoteControl.getStatus(false)));
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/api/pwa/install.mobileconfig') {
+      const reqToken = extractRequestToken(req, port);
+      const rcStatus = remoteControl.getStatus(false);
+      const baseOrigin =
+        rcStatus.customUrl || rcStatus.primaryLanUrl || `http://127.0.0.1:${port}`;
+      const targetUrl =
+        reqToken && remoteControl.verifyToken(reqToken)
+          ? `${baseOrigin}/?rc=${encodeURIComponent(reqToken)}`
+          : `${baseOrigin}/`;
+      const iconCandidates = [
+        path.resolve(import.meta.dirname, '../../assets/icon.png'),
+        path.resolve(import.meta.dirname, '../../build/icon.png'),
+        path.resolve('assets/icon.png'),
+        path.resolve('build/icon.png'),
+      ];
+      const iconFile = iconCandidates.find((p) => existsSync(p));
+      const iconBase64 = iconFile ? (await readFile(iconFile)).toString('base64') : '';
+      const escapeXml = (s: string) =>
+        s
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      const webClipUuid = randomUUID().toUpperCase();
+      const profileUuid = randomUUID().toUpperCase();
+      const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>FullScreen</key>
+      <true/>
+      <key>IsRemovable</key>
+      <true/>
+      <key>Precomposed</key>
+      <true/>
+      <key>Label</key>
+      <string>Agent Board</string>
+      <key>PayloadDescription</key>
+      <string>Agent Board 桌面应用快捷入口</string>
+      <key>PayloadDisplayName</key>
+      <string>Agent Board</string>
+      <key>PayloadIdentifier</key>
+      <string>com.agentboard.webclip.${webClipUuid}</string>
+      <key>PayloadType</key>
+      <string>com.apple.webClip.managed</string>
+      <key>PayloadUUID</key>
+      <string>${webClipUuid}</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+      <key>URL</key>
+      <string>${escapeXml(targetUrl)}</string>${
+        iconBase64
+          ? `\n      <key>Icon</key>\n      <data>${iconBase64}</data>`
+          : ''
+      }
+    </dict>
+  </array>
+  <key>PayloadDescription</key>
+  <string>将 Agent Board 一键安装为全屏手机桌面应用（自带免密授权）</string>
+  <key>PayloadDisplayName</key>
+  <string>Agent Board 桌面应用</string>
+  <key>PayloadIdentifier</key>
+  <string>com.agentboard.profile.${profileUuid}</string>
+  <key>PayloadRemovalDisallowed</key>
+  <false/>
+  <key>PayloadType</key>
+  <string>Configuration</string>
+  <key>PayloadUUID</key>
+  <string>${profileUuid}</string>
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+</dict>
+</plist>`;
+      res.setHeader('Content-Type', 'application/x-apple-aspen-config; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="AgentBoard.mobileconfig"');
+      res.end(plist);
       return;
     }
     if (req.method === 'GET' && url.pathname === '/manifest.webmanifest') {
@@ -984,18 +1080,66 @@ const server = createServer(async (req, res) => {
           icons: [
             {
               src: `/apple-touch-icon.png${iconQuery}`,
-              sizes: '512x512',
+              sizes: '192x192 512x512',
               type: 'image/png',
-              purpose: 'any maskable',
+              purpose: 'any',
+            },
+            {
+              src: `/apple-touch-icon.png${iconQuery}`,
+              sizes: '192x192 512x512',
+              type: 'image/png',
+              purpose: 'maskable',
             },
             {
               src: `/icon.svg${iconQuery}`,
               sizes: 'any',
               type: 'image/svg+xml',
-              purpose: 'any maskable',
+              purpose: 'any',
             },
           ],
         }),
+      );
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/sw.js') {
+      const reqToken = extractRequestToken(req, port);
+      const rcStatus = remoteControl.getStatus(false);
+      const lanBase = rcStatus.customUrl || rcStatus.primaryLanUrl || '';
+      const fallbackUrl =
+        lanBase && reqToken && remoteControl.verifyToken(reqToken)
+          ? `${lanBase}/?rc=${encodeURIComponent(reqToken)}`
+          : lanBase
+            ? `${lanBase}/`
+            : '';
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      res.setHeader('Service-Worker-Allowed', '/');
+      res.end(
+        `const FALLBACK_URL = ${JSON.stringify(fallbackUrl)};
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', (event) => {
+  if (event.request.mode === 'navigate' && FALLBACK_URL) {
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => {
+          if (res.status === 404 || res.status === 502 || res.status === 503 || res.status === 504) {
+            return new Response(
+              '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="background:#0d1210;color:#e6ebe8;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><script>location.replace(' + JSON.stringify(FALLBACK_URL) + ');</script>正在连接 Agent Board...</body></html>',
+              { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+            );
+          }
+          return res;
+        })
+        .catch(() =>
+          new Response(
+            '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="background:#0d1210;color:#e6ebe8;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><script>location.replace(' + JSON.stringify(FALLBACK_URL) + ');</script>正在连接 Agent Board...</body></html>',
+            { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+          )
+        )
+    );
+  }
+});
+`,
       );
       return;
     }
@@ -1038,6 +1182,7 @@ const server = createServer(async (req, res) => {
       const iconFile = iconCandidates.find((p) => existsSync(p));
       if (iconFile) {
         res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
         res.end(await readFile(iconFile));
         return;
       }
@@ -1049,6 +1194,7 @@ const server = createServer(async (req, res) => {
         url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname).replace(/^\//, '');
       try {
         const file = await contained(root, path.resolve(root, requested));
+        const ext = path.extname(file);
         const type: Record<string, string> = {
           '.html': 'text/html; charset=utf-8',
           '.js': 'text/javascript; charset=utf-8',
@@ -1058,9 +1204,34 @@ const server = createServer(async (req, res) => {
           '.ico': 'image/x-icon',
           '.webmanifest': 'application/manifest+json; charset=utf-8',
         };
-        if (!type[path.extname(file)]) throw new HttpError(404, '未找到静态资源');
-        res.setHeader('Content-Type', type[path.extname(file)]);
-        res.end(await readFile(file));
+        if (!type[ext]) throw new HttpError(404, '未找到静态资源');
+        res.setHeader('Content-Type', type[ext]);
+        if (url.pathname.startsWith('/assets/')) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+        let bodyBuf = await readFile(file);
+        if (requested === 'index.html') {
+          const reqToken = extractRequestToken(req, port);
+          if (reqToken && remoteControl.verifyToken(reqToken)) {
+            const htmlStr = bodyBuf
+              .toString('utf8')
+              .replace(
+                'href="/manifest.webmanifest"',
+                `href="/manifest.webmanifest?rc=${encodeURIComponent(reqToken)}"`,
+              );
+            bodyBuf = Buffer.from(htmlStr, 'utf8');
+          }
+        }
+        const acceptEncoding = String(req.headers['accept-encoding'] ?? '');
+        if (
+          acceptEncoding.includes('gzip') &&
+          (ext === '.html' || ext === '.js' || ext === '.css' || ext === '.svg' || ext === '.webmanifest')
+        ) {
+          res.setHeader('Content-Encoding', 'gzip');
+          res.end(gzipSync(bodyBuf));
+          return;
+        }
+        res.end(bodyBuf);
         return;
       } catch (error) {
         if (error instanceof HttpError) throw error;

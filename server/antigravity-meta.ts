@@ -68,7 +68,7 @@ export function getAntigravitySummaries(
 
     // Use dynamic require / import for node:sqlite to avoid startup crash on older node runtimes
     const { DatabaseSync } = require('node:sqlite');
-    const db = new DatabaseSync(dbPath, { open: true, readOnly: true });
+    const db = new DatabaseSync(dbPath, { open: true, readOnly: true, timeout: 2000 });
     const nextMap = new Map<string, AntigravitySummary>();
     try {
       const rows = db

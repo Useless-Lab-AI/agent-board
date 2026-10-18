@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Provider, SessionView } from '../shared/types.js';
-import { request } from './api.js';
+import { request, withRemoteAuthUrl } from './api.js';
 import { AgentLogo } from './AgentLogo.js';
 import { useI18n } from './i18n/index.js';
 import { playSound } from './sound.js';
@@ -136,6 +136,8 @@ export function NewSessionModal({
   const [cwd, setCwd] = useState('');
   const [prompt, setPrompt] = useState('');
   const [attachments, setAttachments] = useState<AttachedFileItem[]>([]);
+  const attachmentsRef = useRef<AttachedFileItem[]>([]);
+  attachmentsRef.current = attachments;
   const [title, setTitle] = useState('');
   const [model, setModel] = useState<string>('Gemini 4 Argon');
   const [availableModels, setAvailableModels] = useState<Record<Provider, { value: string; label: string }[]>>(AGENT_MODELS);
@@ -148,9 +150,14 @@ export function NewSessionModal({
   const hasReadyAttachments = attachments.some((a) => !a.uploading && !a.error && a.localPath);
 
   const handleClose = () => {
-    attachments.forEach((a) => {
-      if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
-      void fetch(`/api/draft/attachments/${encodeURIComponent(a.id)}`, { method: 'DELETE' }).catch(() => {});
+    const pendingToClean = attachmentsRef.current;
+    attachmentsRef.current = [];
+    pendingToClean.forEach((a) => {
+      if (a.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(a.previewUrl);
+      void fetch(withRemoteAuthUrl(`/api/draft/attachments/${encodeURIComponent(a.id)}`), {
+        method: 'DELETE',
+        headers: { 'X-Agent-Board': '1' },
+      }).catch(() => {});
     });
     setAttachments([]);
     onClose();
@@ -497,6 +504,10 @@ export function NewSessionModal({
       }
 
       playSound('send');
+      attachmentsRef.current.forEach((a) => {
+        if (a.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(a.previewUrl);
+      });
+      attachmentsRef.current = [];
       setAttachments([]);
       const optimisticPrompt =
         trimmedPrompt || readyAttachments.map((a) => `[${a.name}]`).join(' ');

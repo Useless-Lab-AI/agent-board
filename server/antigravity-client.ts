@@ -9,6 +9,7 @@ import { getAntigravitySummaries, getAntigravityExecution } from './antigravity-
 import {
   resolveAntigravityCredentials,
   invalidateAntigravityCredentialsCache,
+  sendAntigravityUserMessage,
 } from './antigravity-ls.js';
 
 export interface ApiRunner {
@@ -142,9 +143,9 @@ export class AntigravityClient implements LiveClient {
 
     const isRunning = exec.state === 'RUNNING';
     const isTestEnv = !!process.env.AGENT_BOARD_ANTIGRAVITY_HOME;
-    const creds = !isTestEnv && runner ? await resolveAntigravityCredentials(runner.exe) : null;
-    const hasServer = isTestEnv || !!creds;
-    const canSend = !!runner && hasServer && !isRunning;
+    const creds = !isTestEnv ? await resolveAntigravityCredentials(runner?.exe) : null;
+    const hasServer = isTestEnv ? !!runner : !!creds;
+    const canSend = hasServer && !isRunning;
 
     return {
       epoch: this.epoch,
@@ -164,52 +165,64 @@ export class AntigravityClient implements LiveClient {
 
   async send(text: string): Promise<void> {
     const runner = await getAgentApiRunner(this.antigravityHome);
+    const isTestEnv = !!process.env.AGENT_BOARD_ANTIGRAVITY_HOME;
+
+    // In real Antigravity environment, send via LanguageServerService/SendUserCascadeMessage
+    // so the message is recorded as USER_INPUT (user chat bubble) instead of SYSTEM_MESSAGE ("Message from System").
+    if (!isTestEnv) {
+      let creds = await resolveAntigravityCredentials(runner?.exe);
+      if (!creds) {
+        throw new Error('未检测到 Antigravity 运行中的语言服务，请确保 Antigravity 原客户端正在运行');
+      }
+
+      this.justSentAt = Date.now();
+      let rpcRes = await sendAntigravityUserMessage(creds, this.session.nativeId, text);
+
+      if (
+        !rpcRes.ok &&
+        (rpcRes.error?.includes('ECONNREFUSED') ||
+          rpcRes.error?.includes('socket hang up') ||
+          rpcRes.error?.includes('connection error') ||
+          rpcRes.error?.includes('Unavailable') ||
+          rpcRes.statusCode === 401 ||
+          rpcRes.statusCode === 403)
+      ) {
+        invalidateAntigravityCredentialsCache();
+        const freshCreds = await resolveAntigravityCredentials(runner?.exe);
+        if (freshCreds) {
+          creds = freshCreds;
+          rpcRes = await sendAntigravityUserMessage(creds, this.session.nativeId, text);
+        }
+      }
+
+      this.justSentAt = Date.now();
+      setTimeout(() => {
+        try {
+          this.onUpdateCallback?.();
+        } catch {}
+      }, 80);
+
+      if (rpcRes.ok) {
+        return;
+      }
+
+      throw new Error(`Antigravity 消息发送失败: ${rpcRes.error || '未知错误'}`);
+    }
+
     if (!runner) {
       throw new Error('未找到 Antigravity CLI 工具 (agentapi)，无法发送消息');
     }
 
-    const isTestEnv = !!process.env.AGENT_BOARD_ANTIGRAVITY_HOME;
-    const creds = !isTestEnv ? await resolveAntigravityCredentials(runner.exe) : null;
-    if (!isTestEnv && !creds) {
-      throw new Error('未检测到 Antigravity 运行中的语言服务，请确保 Antigravity 原客户端正在运行');
-    }
-
-    // 1. Resolve target projectId
+    // 1. Resolve target projectId (for isolated test environments using mock agentapi)
     const summaries = getAntigravitySummaries(this.antigravityHome);
     const summary = summaries.get(this.session.nativeId);
-    let targetProjectId = summary?.projectId;
+    const targetProjectId = summary?.projectId;
 
     // Prepare execution environment
     const env: NodeJS.ProcessEnv = { ...process.env };
     // CRITICAL: Strip inherited caller metadata that restricts requests to a foreign project/session
     delete env.ANTIGRAVITY_SOURCE_METADATA;
-
-    if (creds) {
-      env.ANTIGRAVITY_LS_ADDRESS = creds.address;
-      env.ANTIGRAVITY_CSRF_TOKEN = creds.csrfToken;
-    }
-
-    // 2. If targetProjectId is still unknown and not in test mode, query conversation metadata
-    if (!targetProjectId && !isTestEnv) {
-      try {
-        const metaOut = await new Promise<string>((res, rej) => {
-          execFile(
-            runner.exe,
-            [...runner.argsPrefix, 'get-conversation-metadata', this.session.nativeId],
-            { env, shell: runner.shell, windowsHide: true, timeout: 5000 },
-            (err, stdout) => {
-              if (err) rej(err);
-              else res(stdout);
-            },
-          );
-        });
-        const parsed = JSON.parse(metaOut);
-        const fetchedPid = parsed?.response?.conversationMetadata?.metadata?.projectId;
-        if (fetchedPid) {
-          targetProjectId = fetchedPid;
-        }
-      } catch {}
-    }
+    delete env.ANTIGRAVITY_TRAJECTORY_ID;
 
     if (targetProjectId) {
       env.ANTIGRAVITY_PROJECT_ID = targetProjectId;
