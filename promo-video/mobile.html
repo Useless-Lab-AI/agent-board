@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Board - Mobile Remote Control & Voice Input Showcase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Consolas&family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background: #090d16;
+      color: #f1f5f9;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      padding: 16px;
+    }
+    .wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      max-width: 1280px;
+      width: 100%;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 1140px;
+      padding: 4px 6px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #10b981;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(16, 185, 129, 0.14);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+    }
+    .video-switcher {
+      display: flex;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .video-switch-link {
+      text-decoration: none;
+      color: #94a3b8;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+    .video-switch-link:hover { color: #f8fafc; background: rgba(255, 255, 255, 0.06); }
+    .video-switch-link.active {
+      background: #059669;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.4);
+    }
+    .lang-switcher {
+      display: flex;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .lang-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .lang-btn:hover { color: #f8fafc; background: rgba(255, 255, 255, 0.06); }
+    .lang-btn.active {
+      background: #0284c7;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+    }
+    .status-indicator {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .video-viewport {
+      position: relative;
+      width: 100%;
+      max-width: 1140px;
+      aspect-ratio: 16 / 9;
+      background: #f3f5f4;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
+    canvas { width: 100%; height: 100%; display: block; }
+    .chapter-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 1140px;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .chapter-pill {
+      flex: 1;
+      min-width: 150px;
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 7px;
+      padding: 6px 10px;
+      color: #94a3b8;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .chapter-pill:hover {
+      background: rgba(30, 41, 59, 0.85);
+      border-color: rgba(16, 185, 129, 0.35);
+      color: #34d399;
+    }
+    .chapter-pill.active {
+      background: rgba(5, 150, 105, 0.18);
+      border-color: #10b981;
+      color: #34d399;
+      font-weight: 700;
+    }
+    .chapter-pill .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #64748b;
+    }
+    .chapter-pill.active .dot {
+      background: #10b981;
+      box-shadow: 0 0 6px #10b981;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 1140px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(14px);
+      padding: 10px 18px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .btn-group { display: flex; align-items: center; gap: 8px; }
+    .btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 7px 13px;
+      border-radius: 7px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #059669, #34d399);
+      border: none;
+      color: #090d16;
+      font-weight: 700;
+    }
+    .btn-primary:hover {
+      opacity: 0.95;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+      color: #090d16;
+    }
+    .progress-bar-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 220px;
+    }
+    .timeline {
+      flex: 1;
+      height: 7px;
+      background: rgba(255, 255, 255, 0.14);
+      border-radius: 4px;
+      position: relative;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .timeline-progress {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #38bdf8);
+      width: 0%;
+      box-shadow: 0 0 10px #10b981;
+    }
+    .time-indicator {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #94a3b8;
+      min-width: 140px;
+    }
+    .shortcut-legend {
+      font-size: 11px;
+      color: #64748b;
+      font-family: 'JetBrains Mono', monospace;
+      display: flex;
+      gap: 14px;
+      max-width: 1140px;
+      width: 100%;
+      justify-content: center;
+      margin-top: 2px;
+    }
+    .shortcut-legend kbd {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrapper">
+  <div class="header-bar">
+    <div class="brand-title">
+      <span id="uiBrandTitle">AGENT BOARD // Mobile & Voice Showcase</span>
+      <span class="badge" id="uiBrandBadge">QR PAIR · WORK ANYWHERE · VOICE INPUT</span>
+    </div>
+
+    <div class="video-switcher">
+      <a class="video-switch-link" id="linkDesktopVideo" href="index.html">🖥️ Desktop Board</a>
+      <a class="video-switch-link active" id="linkMobileVideo" href="mobile.html">📱 Mobile & Voice</a>
+    </div>
+
+    <div class="lang-switcher">
+      <button class="lang-btn" data-lang="en-US">🇺🇸 English</button>
+      <button class="lang-btn active" data-lang="zh-CN">🇨🇳 简体中文</button>
+      <button class="lang-btn" data-lang="zh-TW">🇭🇰 繁體中文</button>
+      <button class="lang-btn" data-lang="ja-JP">🇯🇵 日本語</button>
+    </div>
+
+    <div class="status-indicator" id="renderStatus">STATUS: READY [15s · 60 FPS]</div>
+  </div>
+
+  <div class="video-viewport" id="viewport">
+    <canvas id="stage" width="1920" height="1080"></canvas>
+  </div>
+
+  <div class="chapter-bar" id="chapterBar"></div>
+
+  <div class="controls">
+    <div class="btn-group">
+      <button class="btn" id="playBtn">▶ Play</button>
+      <button class="btn" id="restartBtn">↺ Restart</button>
+      <button class="btn" id="soundBtn">🔊 Sound: On</button>
+      <button class="btn" id="speedBtn">1.0x</button>
+    </div>
+
+    <div class="progress-bar-container">
+      <div class="timeline" id="timeline">
+        <div class="timeline-progress" id="timelineProgress"></div>
+      </div>
+      <div class="time-indicator" id="timeText">00:00.00 / 00:15.00</div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn" id="snapshotBtn">📸 Snapshot (1080p PNG)</button>
+      <button class="btn btn-primary" id="exportBtn">📥 Export 1080p Video</button>
+    </div>
+  </div>
+
+  <div class="shortcut-legend">
+    <span><kbd>Space</kbd> Play/Pause</span>
+    <span><kbd>R</kbd> Restart</span>
+    <span><kbd>M</kbd> Mute</span>
+    <span><kbd>S</kbd> Snapshot</span>
+    <span><kbd>1-4</kbd> Language (EN/简/繁/日)</span>
+  </div>
+</div>
+
+<script src="mobile-showcase.js"></script>
+</body>
+</html>

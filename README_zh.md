@@ -21,7 +21,7 @@
     <img src="docs/promo-video-zh.gif" alt="Agent Board 动态演示视频" width="850" />
   </a>
   <br />
-  <em>🎬 <b>60 FPS 实时动态演示视频</b>：上方为简体中文版自动循环演示动图；点击画面或打开 <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=zh-CN"><b>60 FPS 在线交互式演示播放器</b></a>（本地文件：<a href="promo-video/index.html?lang=zh-CN"><code>promo-video/index.html</code></a>）体验含实时终端流、原位代码 Diff 审批与合成音效的完整演示（支持 简 / 繁 / EN / 日本語）。</em>
+  <em>🎬 <b>60 FPS 实时动态演示视频</b>：上方为简体中文版自动循环演示动图；点击画面或打开 <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=zh-CN"><b>🖥️ 桌面看板全景演示播放器</b></a>（本地：<a href="promo-video/index.html?lang=zh-CN"><code>promo-video/index.html</code></a>）| <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=zh-CN"><b>📱 手机远程·随处工作·语音输入演示播放器</b></a>（本地：<a href="promo-video/mobile.html?lang=zh-CN"><code>promo-video/mobile.html</code></a>）。</em>
 </p>
 
 **Agent Board** 是一款轻量、免侵入的本地 AI 会话聚合与交互看板。专为高频使用 **Codex**、**Claude Code** 及 **Antigravity** 的开发者设计。它能够在不干扰原客户端、不托管杀死进程、不上传任何数据的原则下，自动发现本机所有会话，在同屏网格中实时追踪多会话进度，并在弹层中提供双向交互与审批。
@@ -37,7 +37,7 @@
   - **Claude Code**：内置 VS Code 无感透明标准输入/输出桥接器（`agent-board-bridge`）及独立终端 MCP Channels 模式（`claude-board`），支持发送真人权限指令、代码修改 Unified Diff 预览与审批、命令执行授权、交互式选择题作答（`AskUserQuestion`），并与 VS Code 本地权限卡片双向实时同步消隐。
   - **Antigravity**：深度支持原生工作空间会话识别与真实用户回合指令联动。
 - ➕ **一键新建会话与多模态附件**：支持在看板中直接创建 Codex、Claude Code 或 Antigravity 新会话（自选工作目录、模型与权限模式），并在交互弹层中粘贴或上传图片及文件附件。
-- 📲 **手机扫码远程控制 & 桌面 App (PWA)**：顶部工具栏及每张会话卡片均内置**手机远程控制二维码**，支持 **局域网 / Tailscale 直连**、**一键公网 HTTPS 隧道**、**自定义域名** 三种模式；手机扫码即可实时接力对话、审批命令与 Diff，并可一键**添加到手机主屏幕**作为独立全屏 App 运行。
+- 📲 **手机扫码远程控制 & 桌面 App (PWA)**：顶部工具栏及每张会话卡片均内置**手机远程控制二维码**，支持 **局域网 / Tailscale 直连**、**一键公网 HTTPS 隧道**、**自定义域名** 三种模式；手机扫码即可实时接力对话、审批命令与 Diff，支持**多语言实时语音输入（🎙️ 动口不动手）**，并可一键**添加到手机主屏幕**作为独立全屏 App 运行。
 - 🛡️ **严格的隐私与安全保护**：
   - 本机回环（`127.0.0.1`）免密直连；外部网络请求强制启用 **256-bit 随机令牌（Token）+ HttpOnly Cookie 鉴权** 与严格的 Host / Origin 校验，支持一键重置令牌踢出所有远端设备；
   - 绝不自动越权执行工具，所有敏感操作严格保留人工确认流程；
@@ -75,6 +75,14 @@ npm start
 ---
 
 ## 📱 手机远程控制与桌面 App (PWA)
+
+<p align="center">
+  <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=zh-CN" title="点击打开 60 FPS 手机远程连接·随处办公·多语言语音输入交互演示播放器">
+    <img src="docs/promo-mobile-zh.gif" alt="Agent Board 手机扫码连接·随处办公·语音输入宣传视频" width="850" />
+  </a>
+  <br />
+  <em>📱 <b>手机扫码极速连接 · 随处移动办公 · 🎙️ 多语言实时语音输入</b>：点击上方动图或打开 <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=zh-CN"><b>60 FPS 手机随行交互演示播放器</b></a>（本地文件：<a href="promo-video/mobile.html?lang=zh-CN"><code>promo-video/mobile.html</code></a>）体验扫码配对、Wi-Fi / Tailscale / 5G 跨网随行、实时语音转文字下达指令与手机一键审批双向同步。</em>
+</p>
 
 点击看板右上角的 **「📱 手机远程」** 按钮（或任意会话卡片右上角的 `📱` 图标），即可打开手机远程控制面板。Agent Board 提供 **三种远程连接方式**，满足室内与户外全场景需求：
 

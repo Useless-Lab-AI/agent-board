@@ -71,11 +71,20 @@ function getAppRoot(): string {
 
 function getIconPath(): string {
   const root = getAppRoot();
-  const candidates = [
-    path.join(root, 'assets', 'icon.png'),
-    path.join(root, 'build', 'icon.png'),
-    path.join(root, 'build', 'icon.ico'),
-  ];
+  const candidates =
+    process.platform === 'win32'
+      ? [
+          path.join(root, 'assets', 'icon.ico'),
+          path.join(root, 'build', 'icon.ico'),
+          path.join(root, 'assets', 'icon.png'),
+          path.join(root, 'build', 'icon.png'),
+        ]
+      : [
+          path.join(root, 'assets', 'icon.png'),
+          path.join(root, 'build', 'icon.png'),
+          path.join(root, 'assets', 'icon.ico'),
+          path.join(root, 'build', 'icon.ico'),
+        ];
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
   }
@@ -85,9 +94,11 @@ function getIconPath(): string {
 function getTrayIcon(): NativeImage {
   const root = getAppRoot();
   if (process.platform === 'win32') {
-    const ico = path.join(root, 'build', 'icon.ico');
-    if (fs.existsSync(ico)) {
-      return nativeImage.createFromPath(ico);
+    for (const rel of [path.join('assets', 'icon.ico'), path.join('build', 'icon.ico')]) {
+      const ico = path.join(root, rel);
+      if (fs.existsSync(ico)) {
+        return nativeImage.createFromPath(ico);
+      }
     }
   }
   const candidates = [

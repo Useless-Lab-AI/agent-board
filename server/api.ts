@@ -994,40 +994,38 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/icon.svg') {
       res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+      const svgCandidates = [
+        path.resolve(import.meta.dirname, '../../assets/icon.svg'),
+        path.resolve('assets/icon.svg'),
+      ];
+      const svgFile = svgCandidates.find((p) => existsSync(p));
+      if (svgFile) {
+        res.end(await readFile(svgFile));
+        return;
+      }
       res.end(
-        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" rx="112" fill="#0d131a"/>
-  <rect x="64" y="64" width="172" height="172" rx="28" fill="#18222f" stroke="#2d3f54" stroke-width="6"/>
-  <circle cx="96" cy="96" r="10" fill="#38bdf8"/>
-  <rect x="118" y="90" width="76" height="12" rx="6" fill="#0284c7"/>
-  <rect x="86" y="126" width="128" height="8" rx="4" fill="#64748b"/>
-  <rect x="86" y="144" width="108" height="8" rx="4" fill="#64748b"/>
-  <rect x="86" y="162" width="88" height="8" rx="4" fill="#64748b"/>
-  <rect x="276" y="64" width="172" height="172" rx="28" fill="#18222f" stroke="#2d3f54" stroke-width="6"/>
-  <circle cx="308" cy="96" r="10" fill="#f59e0b"/>
-  <rect x="330" y="90" width="76" height="12" rx="6" fill="#d97706"/>
-  <rect x="298" y="126" width="128" height="8" rx="4" fill="#64748b"/>
-  <rect x="298" y="144" width="108" height="8" rx="4" fill="#64748b"/>
-  <rect x="298" y="162" width="88" height="8" rx="4" fill="#64748b"/>
-  <rect x="64" y="276" width="172" height="172" rx="28" fill="#18222f" stroke="#2d3f54" stroke-width="6"/>
-  <circle cx="96" cy="308" r="10" fill="#818cf8"/>
-  <rect x="118" y="302" width="76" height="12" rx="6" fill="#6366f1"/>
-  <rect x="86" y="338" width="128" height="8" rx="4" fill="#64748b"/>
-  <rect x="86" y="356" width="108" height="8" rx="4" fill="#64748b"/>
-  <rect x="86" y="374" width="88" height="8" rx="4" fill="#64748b"/>
-  <rect x="276" y="276" width="172" height="172" rx="28" fill="#18222f" stroke="#2d3f54" stroke-width="6"/>
-  <circle cx="308" cy="308" r="10" fill="#22c55e"/>
-  <rect x="330" y="302" width="76" height="12" rx="6" fill="#16a34a"/>
-  <rect x="298" y="338" width="128" height="8" rx="4" fill="#64748b"/>
-  <rect x="298" y="356" width="108" height="8" rx="4" fill="#64748b"/>
-  <rect x="298" y="374" width="88" height="8" rx="4" fill="#64748b"/>
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <g stroke="#0C0C0E" stroke-opacity="0.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M 408 228 A 54 58 0 0 1 408 336" stroke-width="44"/>
+    <path d="M 92 214 A 18 18 0 0 1 110 196 L 350 196 A 18 18 0 0 1 368 214 C 368 368, 312 414, 230 414 C 148 414, 92 368, 92 214 Z" stroke-width="14"/>
+    <path d="M 196 152 C 150 100, 252 72, 206 24" stroke-width="42"/>
+    <path d="M 272 152 C 236 110, 316 84, 280 42" stroke-width="38"/>
+    <line x1="114" y1="468" x2="346" y2="468" stroke-width="44"/>
+  </g>
+  <path d="M 408 228 A 54 58 0 0 1 408 336" stroke="#949290" stroke-width="32" stroke-linecap="round"/>
+  <path d="M 92 214 A 18 18 0 0 1 110 196 L 350 196 A 18 18 0 0 1 368 214 C 368 368, 312 414, 230 414 C 148 414, 92 368, 92 214 Z" fill="#FFFFFF"/>
+  <path d="M 196 152 C 150 100, 252 72, 206 24" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round"/>
+  <path d="M 272 152 C 236 110, 316 84, 280 42" stroke="#949290" stroke-width="26" stroke-linecap="round"/>
+  <line x1="114" y1="468" x2="346" y2="468" stroke="#949290" stroke-width="32" stroke-linecap="round"/>
 </svg>`,
       );
       return;
     }
     if (req.method === 'GET' && url.pathname === '/apple-touch-icon.png') {
       const iconCandidates = [
+        path.resolve(import.meta.dirname, '../../assets/icon.png'),
         path.resolve(import.meta.dirname, '../../build/icon.png'),
+        path.resolve('assets/icon.png'),
         path.resolve('build/icon.png'),
       ];
       const iconFile = iconCandidates.find((p) => existsSync(p));

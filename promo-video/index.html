@@ -62,6 +62,34 @@
       border: 1px solid rgba(56, 189, 248, 0.3);
       color: #38bdf8;
     }
+    .video-switcher {
+      display: flex;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .video-switch-link {
+      text-decoration: none;
+      color: #94a3b8;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+    .video-switch-link:hover {
+      color: #f8fafc;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .video-switch-link.active {
+      background: #0284c7;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+    }
     .lang-switcher {
       display: flex;
       align-items: center;
@@ -272,6 +300,11 @@
     <div class="brand-title">
       <span id="uiBrandTitle">AGENT BOARD // Authentic Product Showcase</span>
       <span class="badge" id="uiBrandBadge">REAL UI · NATIVE SESSIONS · MULTILINGUAL</span>
+    </div>
+
+    <div class="video-switcher">
+      <a class="video-switch-link active" id="linkDesktopVideo" href="index.html">🖥️ Desktop Board</a>
+      <a class="video-switch-link" id="linkMobileVideo" href="mobile.html">📱 Mobile & Voice</a>
     </div>
     
     <div class="lang-switcher">
@@ -2733,6 +2766,19 @@ function updateUIStrings() {
   document.title = S.pageTitle;
   uiBrandTitle.textContent = S.brandTitle;
   uiBrandBadge.textContent = S.brandBadge;
+  const linkDesktop = document.getElementById('linkDesktopVideo');
+  const linkMobile = document.getElementById('linkMobileVideo');
+  const isZh = currentLocale === 'zh-CN' || currentLocale === 'zh';
+  const isTw = currentLocale === 'zh-TW' || currentLocale === 'zh-tw';
+  const isJa = currentLocale === 'ja-JP' || currentLocale === 'ja';
+  if (linkDesktop) {
+    linkDesktop.textContent = isZh ? '🖥️ 桌面看板演示' : isTw ? '🖥️ 桌面看板展示' : isJa ? '🖥️ デスクトップ版' : '🖥️ Desktop Board';
+    linkDesktop.href = `index.html?lang=${currentLocale}`;
+  }
+  if (linkMobile) {
+    linkMobile.textContent = isZh ? '📱 手机远程与语音' : isTw ? '📱 手機遠端與語音' : isJa ? '📱 モバイル＆音声' : '📱 Mobile & Voice';
+    linkMobile.href = `mobile.html?lang=${currentLocale}`;
+  }
   playBtn.textContent = isPlaying ? S.pause : S.play;
   restartBtn.textContent = S.restart;
   soundBtn.textContent = audioEnabled ? S.soundOn : S.soundOff;

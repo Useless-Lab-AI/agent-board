@@ -1,6 +1,6 @@
 {
   "name": "agent-board",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local multi-agent grid dashboard for Codex, Claude Code, and Antigravity",
   "author": "Agent Board Contributors",
   "license": "MIT",
@@ -41,7 +41,8 @@
     "verify:attachments": "node scripts/verify-attachments.mjs",
     "verify:copy": "node scripts/verify-code-copy-browser.mjs",
     "verify:claude-approval": "node scripts/verify-claude-approval.mjs",
-    "generate:promo-assets": "node scripts/generate-promo-assets.mjs"
+    "generate:promo-assets": "node scripts/generate-promo-assets.mjs && node scripts/generate-mobile-promo-assets.mjs",
+    "generate:mobile-promo-assets": "node scripts/generate-mobile-promo-assets.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",

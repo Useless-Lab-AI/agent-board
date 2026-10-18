@@ -21,7 +21,7 @@
     <img src="docs/promo-video-en.gif" alt="Agent Board Interactive Showcase Video" width="850" />
   </a>
   <br />
-  <em>🎬 <b>Interactive 60 FPS Showcase Video</b>: Animated showcase playing above; click the video or open the <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=en-US"><b>Live 60 FPS Interactive Player</b></a> (local: <a href="promo-video/index.html?lang=en-US"><code>promo-video/index.html</code></a>) to experience live terminal streaming, in-place approvals, and procedural audio (Supports EN / 简 / 繁 / 日本語).</em>
+  <em>🎬 <b>Interactive 60 FPS Showcase Videos</b>: Click the video or open the <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=en-US"><b>🖥️ Desktop Board Interactive Player</b></a> (local: <a href="promo-video/index.html?lang=en-US"><code>promo-video/index.html</code></a>) | <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=en-US"><b>📱 Mobile Connect, Work Anywhere & Voice Input Player</b></a> (local: <a href="promo-video/mobile.html?lang=en-US"><code>promo-video/mobile.html</code></a>).</em>
 </p>
 
 **Agent Board** is a lightweight, non-invasive local dashboard for developers orchestrating multiple AI coding agents. Purpose-built for **Codex**, **Claude Code**, and **Antigravity**, it automatically discovers your local sessions, tracks streaming outputs across a stable grid view, and enables live two-way interaction and approvals in interactive modals—all without taking over or terminating your original terminal or IDE instances.
@@ -37,7 +37,7 @@
   - **Anthropic Claude Code**: Powered by a zero-touch VS Code transparent `stdin/stdout` bridge (`agent-board-bridge`) and MCP Channels fallback (`claude-board`). Send human-authorized turns, review Unified Diffs for file edits, approve/deny commands, and answer interactive questions (`AskUserQuestion`) with bidirectional VS Code card sync.
   - **Antigravity**: Native workspace discovery and live turn dispatch via `language_server.exe`.
 - ➕ **One-Click Session Creation & Multimodal Attachments**: Launch new Codex, Claude Code, or Antigravity sessions directly from the board (with workspace, model, and permission selection), and paste or upload image/file attachments in the interaction modal.
-- 📲 **Mobile Remote Control & PWA Desktop App**: Built-in QR code remote access in both the top toolbar and individual session cards. Supports **3 connection modes** (**LAN / Tailscale Direct**, **One-Click Public HTTPS Tunnel**, and **Custom URL**). Scan on your phone to send messages, approve commands/diffs on the go, and **Add to Home Screen** as a standalone full-screen mobile app (PWA).
+- 📲 **Mobile Remote Control, Voice Input & PWA App**: Built-in QR code remote access in both the top toolbar and individual session cards. Supports **3 connection modes** (**LAN / Tailscale Direct**, **One-Click Public HTTPS Tunnel**, and **Custom URL**). Scan on your phone to send messages, use **multilingual live Voice Input (🎙️ hands-free speech-to-text)**, approve commands/diffs on the go, and **Add to Home Screen** as a standalone full-screen mobile app (PWA).
 - 🛡️ **Privacy & Security by Design**:
   - Zero-config passwordless access on local loopback (`127.0.0.1`), while all non-loopback requests require a **256-bit cryptographic token + `HttpOnly` cookie session** with strict Host/Origin validation and one-click token rotation;
   - Never bypasses security prompts or grants autonomous tool permissions;
@@ -75,6 +75,14 @@ Open your desktop browser at **http://127.0.0.1:4317**.
 ---
 
 ## 📱 Mobile Remote Control & PWA App
+
+<p align="center">
+  <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=en-US" title="Click to launch 60 FPS Mobile Remote Control, Work Anywhere & Voice Input Interactive Player">
+    <img src="docs/promo-mobile-en.gif" alt="Agent Board Mobile Connect, Work Anywhere & Voice Input Showcase" width="850" />
+  </a>
+  <br />
+  <em>📱 <b>Instant QR Pairing · Work From Anywhere · 🎙️ Multilingual Voice Input</b>: Click the animation above or open the <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=en-US"><b>60 FPS Mobile & Voice Interactive Player</b></a> (local: <a href="promo-video/mobile.html?lang=en-US"><code>promo-video/mobile.html</code></a>) to experience 1-second QR pairing, Wi-Fi / Tailscale / 5G HTTPS anywhere access, hands-free voice dictation, and real-time bidirectional approval sync.</em>
+</p>
 
 Click **📱 Remote** in the top toolbar (or the `📱` button on any session card) to open the Mobile Remote Control modal. Agent Board supports **three connection methods** for seamless local and cross-network access:
 

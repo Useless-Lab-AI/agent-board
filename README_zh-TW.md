@@ -21,7 +21,7 @@
     <img src="docs/promo-video-zh-tw.gif" alt="Agent Board 動態展示影片" width="850" />
   </a>
   <br />
-  <em>🎬 <b>60 FPS 即時動態展示影片</b>：上方為繁體中文版自動循環展示動圖；點擊畫面或開啟 <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=zh-TW"><b>60 FPS 線上互動式展示播放器</b></a>（本機檔案：<a href="promo-video/index.html?lang=zh-TW"><code>promo-video/index.html</code></a>）體驗含即時終端機串流、原位程式碼 Diff 審批與合成音效的完整展示（支援 繁 / 簡 / EN / 日本語）。</em>
+  <em>🎬 <b>60 FPS 即時動態展示影片</b>：上方為繁體中文版自動循環展示動圖；點擊畫面或開啟 <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=zh-TW"><b>🖥️ 桌面看板全景展示播放器</b></a>（本機：<a href="promo-video/index.html?lang=zh-TW"><code>promo-video/index.html</code></a>）| <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=zh-TW"><b>📱 手機遠端·隨處工作·語音輸入展示播放器</b></a>（本機：<a href="promo-video/mobile.html?lang=zh-TW"><code>promo-video/mobile.html</code></a>）。</em>
 </p>
 
 **Agent Board** 是一款輕量、免侵入式的本機 AI 會話聚合與互動看板。專為高頻使用 **Codex**、**Claude Code** 及 **Antigravity** 的開發者打造。它能在不干擾原始客戶端、不託管或強制終止處理程序、不上傳任何資料的前提下，自動探索本機所有會话，在同螢幕網格中即時追蹤多代理執行進度，並於對話框中提供雙向互動與審批能力。
@@ -37,7 +37,7 @@
   - **Claude Code**：內建 VS Code 無感透明標準輸入/輸出橋接器（`agent-board-bridge`）及獨立終端機 MCP Channels 模式（`claude-board`），支援傳送真人權限指令、程式碼修改 Unified Diff 預覽與審批、命令執行授權、互動式選擇題作答（`AskUserQuestion`），並與 VS Code 本機權限卡片雙向即時同步消隱。
   - **Antigravity**：深度支援原生工作區會話識別與真實使用者回合指令連動。
 - ➕ **一鍵新增會話與多模態附件**：支援在看板中直接建立 Codex、Claude Code 或 Antigravity 新會話（自選工作目錄、模型與權限模式），並在互動對話框中貼上或上傳圖片與檔案附件。
-- 📲 **手機掃碼遠端控制 & 桌面 App (PWA)**：頂部工具列與每張會話卡片皆內建**手機遠端控制 QR Code**，支援 **區域網路 / Tailscale 直連**、**一鍵公網 HTTPS 通道**、**自訂網域** 三種模式；手機掃碼即可即時接力對話、審批命令與 Diff，並可一鍵**加入主畫面**作為獨立全螢幕 App 執行。
+- 📲 **手機掃碼遠端控制 & 桌面 App (PWA)**：頂部工具列與每張會話卡片皆內建**手機遠端控制 QR Code**，支援 **區域網路 / Tailscale 直連**、**一鍵公網 HTTPS 通道**、**自訂網域** 三種模式；手機掃碼即可即時接力對話、審批命令與 Diff，支援**多語言即時語音輸入（🎙️ 動口不動手）**，並可一鍵**加入主畫面**作為獨立全螢幕 App 執行。
 - 🛡️ **嚴格的隱私與安全機制**：
   - 本機迴環（`127.0.0.1`）免密直連；外部網路請求強制啟用 **256-bit 隨機權杖（Token）+ HttpOnly Cookie 驗證** 與嚴格的 Host / Origin 檢查，支援一鍵重設權杖踢出所有遠端裝置；
   - 絕不擅自越權執行工具，所有敏感操作嚴格保留人工確認流程；
@@ -75,6 +75,14 @@ npm start
 ---
 
 ## 📱 手機遠端控制與桌面 App (PWA)
+
+<p align="center">
+  <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=zh-TW" title="點擊開啟 60 FPS 手機遠端連線·隨處辦公·多語言語音輸入互動展示播放器">
+    <img src="docs/promo-mobile-zh-tw.gif" alt="Agent Board 手機掃碼連線·隨處辦公·語音輸入宣傳影片" width="850" />
+  </a>
+  <br />
+  <em>📱 <b>手機掃碼極速連線 · 隨處行動辦公 · 🎙️ 多語言即時語音輸入</b>：點擊上方動圖或開啟 <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=zh-TW"><b>60 FPS 手機隨行互動展示播放器</b></a>（本機檔案：<a href="promo-video/mobile.html?lang=zh-TW"><code>promo-video/mobile.html</code></a>）體驗掃碼配對、Wi-Fi / Tailscale / 5G 跨網隨行、即時語音轉文字下達指令與手機一鍵審批雙向同步。</em>
+</p>
 
 點擊看板右上角的 **「📱 手機遠端」** 按鈕（或任意會話卡片右上角的 `📱` 圖示），即可開啟手機遠端控制面板。Agent Board 提供 **三種遠端連線方式**，滿足室內與戶外全場景需求：
 

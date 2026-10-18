@@ -341,9 +341,12 @@ function BoardApp() {
     <main className={styles.app}>
       <header className={styles.topbar}>
         <div className={styles.brand}>
-          <span className={styles.brandMark} aria-hidden="true">
-            ▦
-          </span>
+          <img
+            src={withRemoteAuthUrl('/icon.svg')}
+            alt=""
+            className={styles.brandLogo}
+            aria-hidden="true"
+          />
           <div>
             <h1>{t.topbar.title}</h1>
             <p>{t.topbar.subtitle}</p>

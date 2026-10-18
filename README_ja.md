@@ -21,7 +21,7 @@
     <img src="docs/promo-video-ja.gif" alt="Agent Board プロモーション動画プレビュー" width="850" />
   </a>
   <br />
-  <em>🎬 <b>インタラクティブ 60 FPS 実演動画</b>：上部に日本語版アニメーションプレビューが自動再生されます。画面をクリックするか <a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=ja-JP"><b>60 FPS オンライン実演プレーヤー</b></a>（ローカル：<a href="promo-video/index.html?lang=ja-JP"><code>promo-video/index.html</code></a>）を開くと、ターミナルストリーミング、インプレース承認、音声シンセサイザーを含む完全なシミュレーションを体験できます（日本語 / EN / 简 / 繁 対応）。</em>
+  <em>🎬 <b>インタラクティブ 60 FPS 実演動画</b>：画面をクリックするか、<a href="https://useless-lab-ai.github.io/agent-board/promo-video/index.html?lang=ja-JP"><b>🖥️ デスクトップ版 60 FPS 実演プレーヤー</b></a>（ローカル：<a href="promo-video/index.html?lang=ja-JP"><code>promo-video/index.html</code></a>）| <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=ja-JP"><b>📱 スマホ接続・どこでも作業・音声入力プレーヤー</b></a>（ローカル：<a href="promo-video/mobile.html?lang=ja-JP"><code>promo-video/mobile.html</code></a>）を開いて体験できます。</em>
 </p>
 
 **Agent Board** は、ローカル環境で複数の AI コーディングエージェントを並行して運用する開発者のための、軽量かつ非侵入型なダッシュボードです。**Codex**、**Claude Code**、**Antigravity** を完全にサポートし、オリジナルのターミナルや IDE インスタンスを停止・乗っ取ることなく、マシン内の全セッションを自動検出。安定したグリッドビューで進行状況をリアルタイムに追跡し、対話モーダルから双方向の入力や承認を行えます。
@@ -37,7 +37,7 @@
   - **Anthropic Claude Code**：ゼロタッチの VS Code 透過 `stdin/stdout` ブリッジ（`agent-board-bridge`）およびスタンドアロン MCP Channels モード（`claude-board`）を搭載。人間ユーザーの権限での指示送信、ファイル編集の Unified Diff 差分プレビュー＆承認、コマンド実行許可、対話型質問への回答（`AskUserQuestion`）、および VS Code 側の承認カードとの双方向リアルタイム同期を実現。
   - **Antigravity**：ネイティブワークスペースの検出と `language_server.exe` による直接ターン送信に対応。
 - ➕ **ワンクリック新規セッション作成＆マルチモーダル添付**：ボード上から Codex、Claude Code、Antigravity の新規セッションを直接起動（ワークスペース・モデル・権限選択対応）でき、対話モーダルへの画像やファイルの貼り付け・アップロードにも対応。
-- 📲 **スマホ QR リモート操作 & ホーム画面アプリ (PWA)**：上部ツールバーおよび各セッションカードに **QR コードリモート接続**を内蔵。**LAN / Tailscale 直接接続**、**ワンクリック公開 HTTPS トンネル**、**カスタムドメイン**の 3 モードに対応し、スマホから外出先でのチャット送信やコマンド／Diff 承認、**ホーム画面への独立アプリ（PWA）登録**が可能です。
+- 📲 **スマホ QR リモート操作・音声入力 & ホーム画面アプリ (PWA)**：上部ツールバーおよび各セッションカードに **QR コードリモート接続**を内蔵。**LAN / Tailscale 直接接続**、**ワンクリック公開 HTTPS トンネル**、**カスタムドメイン**の 3 モードに対応し、スマホから外出先でのチャット送信、**多言語リアルタイム音声入力（🎙️ ハンズフリー音声テキスト変換）**、コマンド／Diff 承認、**ホーム画面への独立アプリ（PWA）登録**が可能です。
 - 🛡️ **プライバシーとセキュリティ**：
   - ローカルループバック（`127.0.0.1`）はパスワード不要で直接接続でき、外部ネットワークからの通信には **256-bit ランダムトークン + `HttpOnly` Cookie 認証**および厳格な Host / Origin 検証を強制（ワンクリックで全リモート端末を即時遮断可能）；
   - 権限の無断昇格やツールの自動承認は行わず、重要な操作には常にユーザー確認を要求；
@@ -75,6 +75,14 @@ PC ブラウザで **http://127.0.0.1:4317** を開きます。
 ---
 
 ## 📱 スマホリモート操作 & ホーム画面アプリ (PWA)
+
+<p align="center">
+  <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=ja-JP" title="クリックして 60 FPS スマホ遠隔接続・どこでも作業・音声入力インタラクティブプレーヤーを起動">
+    <img src="docs/promo-mobile-ja.gif" alt="Agent Board スマホ QR 接続・どこでも作業・音声入力プロモーション動画" width="850" />
+  </a>
+  <br />
+  <em>📱 <b>QR で即接続 · どこでも作業 · 🎙️ 多言語リアルタイム音声入力</b>：上のアニメーションをクリックするか <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=ja-JP"><b>60 FPS モバイル＆音声実演プレーヤー</b></a>（ローカル：<a href="promo-video/mobile.html?lang=ja-JP"><code>promo-video/mobile.html</code></a>）を開くと、QR ペアリング、Wi-Fi / Tailscale / 5G 越境アクセス、リアルタイム音声入力、スマホ承認の双方向同期を体験できます。</em>
+</p>
 
 画面右上の **「📱 スマホ接続」** ボタン（または各セッションカード右上の `📱` アイコン）をクリックすると、モバイルリモート接続モーダルが開きます。Agent Board は室内・外出先を問わず使える **3 つの接続モード**を備えています：
 
