@@ -15,4 +15,7 @@ docs/*
 !docs/promo-video-*.gif
 !docs/promo-video-*.webm
 !docs/promo-video-preview*.png
+!docs/promo-mobile-*.gif
+!docs/promo-mobile-*.webm
+!docs/promo-mobile-preview*.png
 !docs/promo-board-preview.png

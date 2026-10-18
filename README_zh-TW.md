@@ -81,7 +81,7 @@ npm start
     <img src="docs/promo-mobile-zh-tw.gif" alt="Agent Board 手機掃碼連線·隨處辦公·語音輸入宣傳影片" width="850" />
   </a>
   <br />
-  <em>📱 <b>手機掃碼極速連線 · 隨處行動辦公 · 🎙️ 多語言即時語音輸入</b>：點擊上方動圖或開啟 <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=zh-TW"><b>60 FPS 手機隨行互動展示播放器</b></a>（本機檔案：<a href="promo-video/mobile.html?lang=zh-TW"><code>promo-video/mobile.html</code></a>）體驗掃碼配對、Wi-Fi / Tailscale / 5G 跨網隨行、即時語音轉文字下達指令與手機一鍵審批雙向同步。</em>
+  <em>📱 <b>手機掃碼極速連線 · 直向多會話自由切換 · 隨處行動辦公 · 🎙️ 多語言即時語音輸入</b>：點擊上方動圖或開啟 <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=zh-TW"><b>60 FPS 手機隨行互動展示播放器</b></a>（本機檔案：<a href="promo-video/mobile.html?lang=zh-TW"><code>promo-video/mobile.html</code></a> · 高畫質影片：<a href="docs/promo-mobile-zh-tw.webm"><code>docs/promo-mobile-zh-tw.webm</code></a>）體驗掃碼配對、直向多會話列表切換、Wi-Fi / Tailscale / 5G 跨網隨行、即時語音轉文字下達指令與手機一鍵審批雙向同步。</em>
 </p>
 
 點擊看板右上角的 **「📱 手機遠端」** 按鈕（或任意會話卡片右上角的 `📱` 圖示），即可開啟手機遠端控制面板。Agent Board 提供 **三種遠端連線方式**，滿足室內與戶外全場景需求：
@@ -102,7 +102,9 @@ npm start
 3. **方式三：自訂網域 / 反向代理**
    - 若你已設定 Tailscale MagicDNS（如 `https://my-pc.tailxxxx.ts.net`）或自建反向代理，可在 **「自訂網域」** 模式下填入固定外部位址，自動組裝安全權杖並產生 QR Code。
 
-### 📲 儲存為手機桌面 App (PWA) 與單會話接力
+### 📲 直向多會話切換、語音輸入與手機桌面 App (PWA)
+- **直向多會話列表與自由切換**：手機端專為直向單手操作最佳化，首頁展示目前電腦上的全部活躍會話卡片；點擊卡片上的 **「互動」** 即可進入 `100dvh` 全螢幕會話詳情，點擊左上角 **`← 返回列表`** 即可隨時切回看板並切換至其他 Codex、Claude 或 Antigravity 會話。
+- **🎙️ 多語言即時語音輸入**：會話輸入框內建 **「🎙️ 語音輸入」** 按鈕，支援繁中、簡中、English、日本語等多語言即時語音轉文字（Speech-to-Text），出門在外或通勤途中動口不動手即可高效下達研發指令。
 - **單會話掃碼接力**：點擊任意會話卡片右上角的 `📱` 按鈕，QR Code 會自動指向該會話專屬深連結（`?session=<id>`），手機掃碼後**直接全螢幕彈出該會話的對話與審批介面**，電腦端可無縫切換至手機端繼續對話。
 - **安裝至手機主畫面（PWA）**：
   - **iOS (Safari)**：掃碼開啟網頁後，點擊底部 **「分享」** 按鈕 $\rightarrow$ 選擇 **「加入主畫面」**；

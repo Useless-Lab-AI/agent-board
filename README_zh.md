@@ -81,7 +81,7 @@ npm start
     <img src="docs/promo-mobile-zh.gif" alt="Agent Board 手机扫码连接·随处办公·语音输入宣传视频" width="850" />
   </a>
   <br />
-  <em>📱 <b>手机扫码极速连接 · 随处移动办公 · 🎙️ 多语言实时语音输入</b>：点击上方动图或打开 <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=zh-CN"><b>60 FPS 手机随行交互演示播放器</b></a>（本地文件：<a href="promo-video/mobile.html?lang=zh-CN"><code>promo-video/mobile.html</code></a>）体验扫码配对、Wi-Fi / Tailscale / 5G 跨网随行、实时语音转文字下达指令与手机一键审批双向同步。</em>
+  <em>📱 <b>手机扫码极速连接 · 竖屏多会话自由切换 · 随处移动办公 · 🎙️ 多语言实时语音输入</b>：点击上方动图或打开 <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=zh-CN"><b>60 FPS 手机随行交互演示播放器</b></a>（本地文件：<a href="promo-video/mobile.html?lang=zh-CN"><code>promo-video/mobile.html</code></a> · 高清视频：<a href="docs/promo-mobile-zh.webm"><code>docs/promo-mobile-zh.webm</code></a>）体验扫码配对、竖屏多会话列表切换、Wi-Fi / Tailscale / 5G 跨网随行、实时语音转文字下达指令与手机一键审批双向同步。</em>
 </p>
 
 点击看板右上角的 **「📱 手机远程」** 按钮（或任意会话卡片右上角的 `📱` 图标），即可打开手机远程控制面板。Agent Board 提供 **三种远程连接方式**，满足室内与户外全场景需求：
@@ -102,7 +102,9 @@ npm start
 3. **方式三：自定义域名 / 反向代理**
    - 若你已配置 Tailscale MagicDNS（如 `https://my-pc.tailxxxx.ts.net`）或自建反向代理，可在 **「自定义域名」** 模式下填入固定外部地址，自动拼装安全令牌并生成二维码。
 
-### 📲 保存为手机桌面 App (PWA) 与单会话接力
+### 📲 竖屏多会话切换、语音输入与手机桌面 App (PWA)
+- **竖屏多会话列表与自由切换**：手机端专为竖屏单手操作优化，首页展示当前电脑上的全部活跃会话卡片；点击卡片上的 **「交互」** 即可进入 `100dvh` 全屏会话详情，点击左上角 **`← 返回列表`** 即可随时切回看板并切换至其他 Codex、Claude 或 Antigravity 会话。
+- **🎙️ 多语言实时语音输入**：会话输入框内置 **「🎙️ 语音输入」** 按钮，支持中文、English、日本語等多语言实时语音转文字（Speech-to-Text），出门在外或通勤路上动口不动手即可高效下达研发指令。
 - **单会话扫码接力**：点击任意会话卡片右上角的 `📱` 按钮，二维码会自动指向该会话专属深链（`?session=<id>`），手机扫码后**直接全屏弹出该会话的聊天与审批界面**，电脑端可无缝切换到手机端继续对话。
 - **安装到手机桌面（PWA）**：
   - **iOS (Safari)**：扫码打开网页后，点击底部 **「分享」** 按钮 $\rightarrow$ 选择 **「添加到主屏幕」**；

@@ -81,7 +81,7 @@ PC ブラウザで **http://127.0.0.1:4317** を開きます。
     <img src="docs/promo-mobile-ja.gif" alt="Agent Board スマホ QR 接続・どこでも作業・音声入力プロモーション動画" width="850" />
   </a>
   <br />
-  <em>📱 <b>QR で即接続 · どこでも作業 · 🎙️ 多言語リアルタイム音声入力</b>：上のアニメーションをクリックするか <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=ja-JP"><b>60 FPS モバイル＆音声実演プレーヤー</b></a>（ローカル：<a href="promo-video/mobile.html?lang=ja-JP"><code>promo-video/mobile.html</code></a>）を開くと、QR ペアリング、Wi-Fi / Tailscale / 5G 越境アクセス、リアルタイム音声入力、スマホ承認の双方向同期を体験できます。</em>
+  <em>📱 <b>QR で即接続 · 縦画面で複数セッション切替 · どこでも作業 · 🎙️ 多言語リアルタイム音声入力</b>：上のアニメーションをクリックするか <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=ja-JP"><b>60 FPS モバイル＆音声実演プレーヤー</b></a>（ローカル：<a href="promo-video/mobile.html?lang=ja-JP"><code>promo-video/mobile.html</code></a> · 1080p 動画：<a href="docs/promo-mobile-ja.webm"><code>docs/promo-mobile-ja.webm</code></a>）を開くと、QR ペアリング、縦画面での複数セッション切り替え、Wi-Fi / Tailscale / 5G 越境アクセス、リアルタイム音声入力、スマホ承認の双方向同期を体験できます。</em>
 </p>
 
 画面右上の **「📱 スマホ接続」** ボタン（または各セッションカード右上の `📱` アイコン）をクリックすると、モバイルリモート接続モーダルが開きます。Agent Board は室内・外出先を問わず使える **3 つの接続モード**を備えています：
@@ -102,7 +102,9 @@ PC ブラウザで **http://127.0.0.1:4317** を開きます。
 3. **モード 3：カスタムドメイン / リバースプロキシ**
    - Tailscale MagicDNS（`https://my-pc.tailxxxx.ts.net` など）や独自のリバースプロキシ URL を入力すると、認証トークン付きの QR コードを生成します。
 
-### 📲 セッション引き継ぎ & ホーム画面アプリ（PWA）のインストール
+### 📲 縦画面での複数セッション切替・音声入力 & ホーム画面アプリ（PWA）
+- **縦画面の複数セッション一覧＆自在な切り替え**：スマホの縦画面（ポートレート表示）に最適化されており、PC 上の全アクティブセッションを一覧表示。カードの **「対話」** をタップすると `100dvh` フルスクリーン対話画面が開き、左上の **`← 一覧へ戻る`** からいつでもボードへ戻って別の Codex / Claude / Antigravity セッションへ切り替えられます。
+- **🎙️ 多言語リアルタイム音声入力**：入力欄に **「🎙️ 音声入力」** ボタンを内蔵し、日本語・英語・中国語のリアルタイム音声テキスト変換（Speech-to-Text）に対応。移動中や片手操作でも声だけで素早く指示を送れます。
 - **個別セッションのワンタップ引き継ぎ**：各セッションカード右上の `📱` アイコンを押すと、そのセッション専用のディープリンク（`?session=<id>`）付き QR コードが表示されます。スマホで読み取ると**該当セッションの対話・承認画面が直接フルスクリーンで開きます**。
 - **スマホのホーム画面にアプリとして追加（PWA）**：
   - **iOS (Safari)**：QR コードからページを開き、下部の **「共有」** ボタン $\rightarrow$ **「ホーム画面に追加」** を選択。

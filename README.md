@@ -81,7 +81,7 @@ Open your desktop browser at **http://127.0.0.1:4317**.
     <img src="docs/promo-mobile-en.gif" alt="Agent Board Mobile Connect, Work Anywhere & Voice Input Showcase" width="850" />
   </a>
   <br />
-  <em>📱 <b>Instant QR Pairing · Work From Anywhere · 🎙️ Multilingual Voice Input</b>: Click the animation above or open the <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=en-US"><b>60 FPS Mobile & Voice Interactive Player</b></a> (local: <a href="promo-video/mobile.html?lang=en-US"><code>promo-video/mobile.html</code></a>) to experience 1-second QR pairing, Wi-Fi / Tailscale / 5G HTTPS anywhere access, hands-free voice dictation, and real-time bidirectional approval sync.</em>
+  <em>📱 <b>Instant QR Pairing · Portrait Multi-Session Switching · Work Anywhere · 🎙️ Multilingual Voice Input</b>: Click the animation above or open the <a href="https://useless-lab-ai.github.io/agent-board/promo-video/mobile.html?lang=en-US"><b>60 FPS Mobile & Voice Interactive Player</b></a> (local: <a href="promo-video/mobile.html?lang=en-US"><code>promo-video/mobile.html</code></a> · 1080p WebM: <a href="docs/promo-mobile-en.webm"><code>docs/promo-mobile-en.webm</code></a>) to experience 1-second QR pairing, portrait multi-session switching, Wi-Fi / Tailscale / 5G HTTPS anywhere access, hands-free voice dictation, and real-time bidirectional approval sync.</em>
 </p>
 
 Click **📱 Remote** in the top toolbar (or the `📱` button on any session card) to open the Mobile Remote Control modal. Agent Board supports **three connection methods** for seamless local and cross-network access:
@@ -102,7 +102,9 @@ Click **📱 Remote** in the top toolbar (or the `📱` button on any session ca
 3. **Mode 3: Custom Domain / Reverse Proxy**
    - Enter your own external origin (e.g., Tailscale MagicDNS `https://my-pc.tailxxxx.ts.net` or a custom reverse proxy) to generate a token-authenticated QR code.
 
-### 📲 Session Handoff & Installing as a Mobile App (PWA)
+### 📲 Portrait Multi-Session Switching, Voice Input & Mobile App (PWA)
+- **Portrait Multi-Session List & Instant Switching**: Optimized for vertical smartphones, the mobile view lists all active sessions on your PC. Tap **Interact** on any card to open its `100dvh` full-screen live conversation & approval view, and tap **`← Sessions`** in the top-left header to jump back to the board and switch between Codex, Claude, and Antigravity sessions anytime.
+- **🎙️ Multilingual Live Voice Input**: Tap **🎙️ Voice input** inside the mobile composer to dictate instructions hands-free using live Speech-to-Text (supporting English, Chinese, and Japanese)—ideal when walking, commuting, or working one-handed.
 - **Single-Session QR Handoff**: Click the `📱` icon on any session card to generate a deep-link QR code (`?session=<id>`). Scanning it on your phone opens **that specific session's live chat and approval modal immediately**.
 - **Install to Home Screen (PWA)**:
   - **iOS (Safari)**: Scan the QR code $\rightarrow$ tap the **Share** button $\rightarrow$ **Add to Home Screen**.
