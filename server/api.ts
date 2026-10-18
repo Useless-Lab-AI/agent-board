@@ -496,9 +496,16 @@ const server = createServer(async (req, res) => {
         : { kind: 'list', offset: 0 };
       if (offset.kind !== 'list' || !Number.isSafeInteger(offset.offset) || offset.offset < 0)
         throw new HttpError(400, '列表游标无效');
+      const pageSessions = sessions.slice(offset.offset, offset.offset + size);
+      const pin = url.searchParams.get('pin');
+      if (pin && offset.offset === 0 && !pageSessions.some((s) => s.id === pin)) {
+        if (discovery.sessions.has(pin)) {
+          pageSessions.unshift(view(pin));
+        }
+      }
       res.end(
         JSON.stringify({
-          sessions: sessions.slice(offset.offset, offset.offset + size),
+          sessions: pageSessions,
           total: sessions.length,
           nextCursor:
             offset.offset + size < sessions.length

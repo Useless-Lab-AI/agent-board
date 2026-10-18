@@ -56,6 +56,8 @@ function BoardApp() {
       return null;
     }
   });
+  const autoExpandRef = useRef<string | null>(autoExpandId);
+  autoExpandRef.current = autoExpandId;
   const [lastActiveCwd, setLastActiveCwd] = useState<string>('');
   const [remoteModalOpen, setRemoteModalOpen] = useState(false);
   const [remoteTargetSession, setRemoteTargetSession] = useState<SessionView | null>(null);
@@ -151,6 +153,7 @@ function BoardApp() {
           if (provider) query.set('provider', provider);
           if (filter) query.set('state', filter);
           if (cursor) query.set('cursor', cursor);
+          else if (autoExpandRef.current) query.set('pin', autoExpandRef.current);
           const result = await request<SessionList & { error?: string }>('/api/sessions?' + query);
           if ('error' in result && result.error) throw new Error(String(result.error));
           rows.push(...result.sessions);

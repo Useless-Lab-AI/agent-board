@@ -156,6 +156,42 @@ export class RemoteControlManager {
     if (!this.store.getSetting('remote_control_device_name')) {
       this.store.setSetting('remote_control_device_name', os.hostname() || 'My Desktop');
     }
+    if (this.isEnabled()) {
+      this.ensureWindowsFirewallRule();
+    }
+  }
+
+  private ensureWindowsFirewallRule(): void {
+    if (process.platform !== 'win32') return;
+    const ruleName = `Agent Board Remote Control (TCP ${this.port})`;
+    try {
+      const check = spawn(
+        'netsh',
+        ['advfirewall', 'firewall', 'show', 'rule', `name=${ruleName}`],
+        { stdio: 'ignore', windowsHide: true },
+      );
+      check.on('error', () => {});
+      check.on('exit', (code) => {
+        if (code === 0) return;
+        const cmd = [
+          `netsh advfirewall firewall set rule name="agent board.exe" new action=allow profile=any 2>$null`,
+          `netsh advfirewall firewall add rule name="${ruleName}" dir=in action=allow protocol=TCP localport=${this.port} profile=any`,
+        ].join('; ');
+        const elevate = spawn(
+          'powershell.exe',
+          [
+            '-NoProfile',
+            '-NonInteractive',
+            '-WindowStyle',
+            'Hidden',
+            '-Command',
+            `Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden -ArgumentList '-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',${JSON.stringify(cmd)}`,
+          ],
+          { stdio: 'ignore', windowsHide: true },
+        );
+        elevate.on('error', () => {});
+      });
+    } catch {}
   }
 
   isEnabled(): boolean {
@@ -164,7 +200,9 @@ export class RemoteControlManager {
 
   setEnabled(enabled: boolean): void {
     this.store.setSetting('remote_control_enabled', enabled ? 'true' : 'false');
-    if (!enabled) {
+    if (enabled) {
+      this.ensureWindowsFirewallRule();
+    } else {
       this.stopTunnel();
     }
     this.onChange?.();
