@@ -749,6 +749,119 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ cwd: process.cwd() }));
       return;
     }
+    if (req.method === 'GET' && url.pathname === '/api/system/version') {
+      let currentVersion = '0.1.2';
+      try {
+        const pkgCandidates = [
+          path.resolve(process.cwd(), 'package.json'),
+          path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '../../package.json'),
+          path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '../package.json'),
+        ];
+        for (const p of pkgCandidates) {
+          if (existsSync(p)) {
+            const pkg = JSON.parse(await readFile(p, 'utf8'));
+            if (typeof pkg.version === 'string' && pkg.version) {
+              currentVersion = pkg.version;
+              break;
+            }
+          }
+        }
+      } catch {}
+
+      const shouldCheck = url.searchParams.get('check') === '1';
+      if (!shouldCheck) {
+        res.end(
+          JSON.stringify({
+            currentVersion,
+            latestVersion: null,
+            hasUpdate: false,
+            releaseUrl: 'https://github.com/Useless-Lab-AI/agent-board/releases/latest',
+            downloadUrl: null,
+          }),
+        );
+        return;
+      }
+
+      try {
+        const ghRes = await fetch('https://api.github.com/repos/Useless-Lab-AI/agent-board/releases/latest', {
+          headers: {
+            Accept: 'application/vnd.github+json',
+            'User-Agent': `Agent-Board/${currentVersion}`,
+          },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!ghRes.ok) {
+          throw new Error(`GitHub API HTTP ${ghRes.status}`);
+        }
+        const release = (await ghRes.json()) as {
+          tag_name?: string;
+          html_url?: string;
+          published_at?: string;
+          assets?: Array<{ name?: string; browser_download_url?: string }>;
+        };
+        const latestVersion = String(release.tag_name ?? '').replace(/^v/i, '').trim() || currentVersion;
+        const parseVer = (v: string) =>
+          v
+            .split('-')[0]
+            .split('.')
+            .map((n) => Number.parseInt(n, 10) || 0);
+        const [cMaj = 0, cMin = 0, cPat = 0] = parseVer(currentVersion);
+        const [lMaj = 0, lMin = 0, lPat = 0] = parseVer(latestVersion);
+        const hasUpdate =
+          lMaj > cMaj || (lMaj === cMaj && lMin > cMin) || (lMaj === cMaj && lMin === cMin && lPat > cPat);
+
+        let downloadUrl: string | null = null;
+        const assets = Array.isArray(release.assets) ? release.assets : [];
+        const plat = process.platform;
+        const arch = process.arch;
+        for (const a of assets) {
+          const name = String(a.name ?? '').toLowerCase();
+          const dl = a.browser_download_url ?? null;
+          if (!dl || name.endsWith('.blockmap') || name.endsWith('.yml') || name.endsWith('.txt')) continue;
+          if (plat === 'win32' && name.endsWith('.exe')) {
+            downloadUrl = dl;
+            break;
+          }
+          if (plat === 'darwin' && name.endsWith('.dmg')) {
+            if ((arch === 'arm64' && name.includes('arm64')) || (arch !== 'arm64' && name.includes('x64'))) {
+              downloadUrl = dl;
+              break;
+            }
+            if (!downloadUrl) downloadUrl = dl;
+          }
+          if (plat === 'linux' && (name.endsWith('.appimage') || name.endsWith('.deb'))) {
+            if (name.endsWith('.appimage')) {
+              downloadUrl = dl;
+              break;
+            }
+            if (!downloadUrl) downloadUrl = dl;
+          }
+        }
+
+        res.end(
+          JSON.stringify({
+            currentVersion,
+            latestVersion,
+            hasUpdate,
+            releaseUrl: release.html_url ?? 'https://github.com/Useless-Lab-AI/agent-board/releases/latest',
+            downloadUrl,
+            publishedAt: release.published_at ?? null,
+          }),
+        );
+      } catch (err) {
+        res.end(
+          JSON.stringify({
+            currentVersion,
+            latestVersion: null,
+            hasUpdate: false,
+            releaseUrl: 'https://github.com/Useless-Lab-AI/agent-board/releases/latest',
+            downloadUrl: null,
+            error: (err as Error).message,
+          }),
+        );
+      }
+      return;
+    }
     if (req.method === 'GET' && url.pathname === '/api/projects') {
       if (!initialized) await reconcile();
       const savedRaw = store.getSetting('recent_projects');

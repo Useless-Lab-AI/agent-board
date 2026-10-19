@@ -281,4 +281,20 @@ export const zhTW: Translations = {
     pwaBannerDismiss: '知道了',
     close: '關閉',
   },
+  updater: {
+    checkBtn: '檢查更新',
+    checking: '正在檢查更新…',
+    upToDate: (version: string) => `已是最新 v${version}`,
+    availableBadge: (version: string) => `⬆ 新版本 v${version}`,
+    bannerTitle: (latest: string, current: string) => `🎉 發現新版本 v${latest}（目前 v${current}）`,
+    downloadingTitle: (version: string, percent: number) => `⏳ 正在下載更新 v${version}… ${percent}%`,
+    downloadedTitle: (version: string) => `✅ 新版本 v${version} 已下載就緒，立即安裝即可完成升級`,
+    errorTitle: (msg: string) => `⚠️ 自動更新遇到問題：${msg}`,
+    updateNowBtn: '⚡ 立即更新',
+    restartInstallBtn: '🚀 立即重啟並安裝',
+    downloadManualBtn: '📥 前往 GitHub 下載',
+    releaseNotesBtn: '更新日誌',
+    dismissBtn: '稍後提醒',
+  },
 };
+

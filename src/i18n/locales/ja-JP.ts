@@ -280,4 +280,20 @@ export const jaJP: Translations = {
     pwaBannerDismiss: '閉じる',
     close: '閉じる',
   },
+  updater: {
+    checkBtn: '更新を確認',
+    checking: '更新を確認中…',
+    upToDate: (version: string) => `最新です (v${version})`,
+    availableBadge: (version: string) => `⬆ 更新あり v${version}`,
+    bannerTitle: (latest: string, current: string) => `🎉 新しいバージョン v${latest} が利用可能です（現在 v${current}）`,
+    downloadingTitle: (version: string, percent: number) => `⏳ 更新 v${version} をダウンロード中… ${percent}%`,
+    downloadedTitle: (version: string) => `✅ 新バージョン v${version} のインストール準備が完了しました`,
+    errorTitle: (msg: string) => `⚠️ 自動更新エラー：${msg}`,
+    updateNowBtn: '⚡ 今すぐ更新',
+    restartInstallBtn: '🚀 再起動してインストール',
+    downloadManualBtn: '📥 GitHub からダウンロード',
+    releaseNotesBtn: 'リリースノート',
+    dismissBtn: '後で',
+  },
 };
+

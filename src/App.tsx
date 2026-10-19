@@ -117,6 +117,161 @@ function BoardApp() {
     }
   }, []);
 
+  const [updateState, setUpdateState] = useState<{
+    status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+    currentVersion: string;
+    latestVersion: string | null;
+    releaseUrl: string;
+    downloadUrl: string | null;
+    progressPercent: number | null;
+    error: string | null;
+  }>({
+    status: 'idle',
+    currentVersion: '0.1.2',
+    latestVersion: null,
+    releaseUrl: 'https://github.com/Useless-Lab-AI/agent-board/releases/latest',
+    downloadUrl: null,
+    progressPercent: null,
+    error: null,
+  });
+  const [updateDismissed, setUpdateDismissed] = useState(false);
+  const [showUpToDateToast, setShowUpToDateToast] = useState(false);
+
+  useEffect(() => {
+    const desktopApi = (window as any).agentBoardDesktop;
+    if (desktopApi && typeof desktopApi.getUpdateState === 'function') {
+      void desktopApi.getUpdateState().then((st: any) => {
+        if (st && typeof st.currentVersion === 'string') {
+          setUpdateState(st);
+        }
+      });
+      if (typeof desktopApi.onUpdateState === 'function') {
+        return desktopApi.onUpdateState((st: any) => {
+          if (st && typeof st.currentVersion === 'string') {
+            setUpdateState(st);
+            if (st.status === 'available' || st.status === 'downloading' || st.status === 'downloaded') {
+              setUpdateDismissed(false);
+            }
+          }
+        });
+      }
+      return;
+    }
+
+    // Web / CLI server fallback: check version once after mount
+    let cancelled = false;
+    const checkWebVersion = async () => {
+      try {
+        const res = await request<{
+          currentVersion: string;
+          latestVersion: string | null;
+          hasUpdate: boolean;
+          releaseUrl: string;
+          downloadUrl: string | null;
+        }>('/api/system/version?check=1');
+        if (cancelled || !res) return;
+        setUpdateState({
+          status: res.hasUpdate ? 'available' : 'not-available',
+          currentVersion: res.currentVersion || '0.1.2',
+          latestVersion: res.latestVersion,
+          releaseUrl: res.releaseUrl || 'https://github.com/Useless-Lab-AI/agent-board/releases/latest',
+          downloadUrl: res.downloadUrl,
+          progressPercent: null,
+          error: null,
+        });
+      } catch {}
+    };
+    const timer = setTimeout(() => void checkWebVersion(), 4000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
+
+  const handleManualCheckUpdate = async () => {
+    playSound('click');
+    setUpdateDismissed(false);
+    const desktopApi = (window as any).agentBoardDesktop;
+    if (desktopApi && typeof desktopApi.checkForUpdates === 'function') {
+      const next = await desktopApi.checkForUpdates(true);
+      if (next?.status === 'not-available') {
+        setShowUpToDateToast(true);
+        setTimeout(() => setShowUpToDateToast(false), 3500);
+      }
+      return;
+    }
+    setUpdateState((prev) => ({ ...prev, status: 'checking', error: null }));
+    try {
+      const res = await request<{
+        currentVersion: string;
+        latestVersion: string | null;
+        hasUpdate: boolean;
+        releaseUrl: string;
+        downloadUrl: string | null;
+        error?: string;
+      }>('/api/system/version?check=1');
+      if (res.error) {
+        setUpdateState((prev) => ({ ...prev, status: 'error', error: res.error || null }));
+      } else if (res.hasUpdate) {
+        setUpdateState({
+          status: 'available',
+          currentVersion: res.currentVersion,
+          latestVersion: res.latestVersion,
+          releaseUrl: res.releaseUrl,
+          downloadUrl: res.downloadUrl,
+          progressPercent: null,
+          error: null,
+        });
+      } else {
+        setUpdateState((prev) => ({
+          ...prev,
+          status: 'not-available',
+          currentVersion: res.currentVersion || prev.currentVersion,
+          latestVersion: res.latestVersion,
+        }));
+        setShowUpToDateToast(true);
+        setTimeout(() => setShowUpToDateToast(false), 3500);
+      }
+    } catch (err) {
+      setUpdateState((prev) => ({
+        ...prev,
+        status: 'error',
+        error: (err as Error).message,
+      }));
+    }
+  };
+
+  const handleStartUpdate = async () => {
+    playSound('click');
+    const desktopApi = (window as any).agentBoardDesktop;
+    if (desktopApi && typeof desktopApi.startUpdate === 'function') {
+      await desktopApi.startUpdate();
+      return;
+    }
+    const targetUrl = updateState.downloadUrl || updateState.releaseUrl;
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleInstallUpdate = async () => {
+    playSound('click');
+    const desktopApi = (window as any).agentBoardDesktop;
+    if (desktopApi && typeof desktopApi.installUpdate === 'function') {
+      await desktopApi.installUpdate();
+      return;
+    }
+    const targetUrl = updateState.downloadUrl || updateState.releaseUrl;
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleOpenExternalUrl = (url: string) => {
+    const desktopApi = (window as any).agentBoardDesktop;
+    if (desktopApi && typeof desktopApi.openExternal === 'function') {
+      void desktopApi.openExternal(url);
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const handleOpenNewSession = (p: Provider) => {
     setNewModalProvider(p);
     setNewModalOpen(true);
@@ -440,6 +595,25 @@ function BoardApp() {
           </div>
           <button
             type="button"
+            className={`${styles.versionChip} ${
+              updateState.status === 'available' || updateState.status === 'downloaded'
+                ? styles.versionChipUpdate
+                : ''
+            }`}
+            onClick={() => void handleManualCheckUpdate()}
+            title={t.updater.checkBtn}
+            aria-label={t.updater.checkBtn}
+          >
+            {updateState.status === 'checking'
+              ? t.updater.checking
+              : updateState.status === 'available' || updateState.status === 'downloaded'
+                ? t.updater.availableBadge(updateState.latestVersion || '')
+                : showUpToDateToast
+                  ? t.updater.upToDate(updateState.currentVersion)
+                  : `v${updateState.currentVersion}`}
+          </button>
+          <button
+            type="button"
             className={styles.remoteTopbarBtn}
             onClick={() => {
               playSound('click');
@@ -465,6 +639,98 @@ function BoardApp() {
           <LanguageSwitcher />
         </div>
       </header>
+      {!updateDismissed &&
+        (updateState.status === 'available' ||
+          updateState.status === 'downloading' ||
+          updateState.status === 'downloaded' ||
+          updateState.status === 'error') && (
+          <div className={styles.updateBanner} role="status">
+            <div className={styles.updateBannerRow}>
+              <div className={styles.updateBannerTitle}>
+                {updateState.status === 'available' &&
+                  t.updater.bannerTitle(
+                    updateState.latestVersion || '',
+                    updateState.currentVersion,
+                  )}
+                {updateState.status === 'downloading' &&
+                  t.updater.downloadingTitle(
+                    updateState.latestVersion || '',
+                    updateState.progressPercent ?? 0,
+                  )}
+                {updateState.status === 'downloaded' &&
+                  t.updater.downloadedTitle(updateState.latestVersion || '')}
+                {updateState.status === 'error' &&
+                  t.updater.errorTitle(updateState.error || '')}
+              </div>
+              <div className={styles.updateBannerActions}>
+                {updateState.status === 'available' && (
+                  <>
+                    <button
+                      type="button"
+                      className={styles.updatePrimaryBtn}
+                      onClick={() => void handleStartUpdate()}
+                    >
+                      {t.updater.updateNowBtn}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.updateSecondaryBtn}
+                      onClick={() => handleOpenExternalUrl(updateState.releaseUrl)}
+                    >
+                      {t.updater.releaseNotesBtn}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.updateSecondaryBtn}
+                      onClick={() => setUpdateDismissed(true)}
+                      title={t.updater.dismissBtn}
+                    >
+                      ✕
+                    </button>
+                  </>
+                )}
+                {updateState.status === 'downloaded' && (
+                  <button
+                    type="button"
+                    className={styles.updatePrimaryBtn}
+                    onClick={() => void handleInstallUpdate()}
+                  >
+                    {t.updater.restartInstallBtn}
+                  </button>
+                )}
+                {updateState.status === 'error' && (
+                  <>
+                    <button
+                      type="button"
+                      className={styles.updatePrimaryBtn}
+                      onClick={() =>
+                        handleOpenExternalUrl(updateState.downloadUrl || updateState.releaseUrl)
+                      }
+                    >
+                      {t.updater.downloadManualBtn}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.updateSecondaryBtn}
+                      onClick={() => setUpdateDismissed(true)}
+                      title={t.updater.dismissBtn}
+                    >
+                      ✕
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            {updateState.status === 'downloading' && (
+              <div className={styles.updateProgressTrack}>
+                <div
+                  className={styles.updateProgressFill}
+                  style={{ width: `${Math.max(4, updateState.progressPercent ?? 0)}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
       {showPwaBanner && (
         <div className={styles.pwaBanner} role="region" aria-label={t.remoteControl.pwaBannerTitle}>
           <div

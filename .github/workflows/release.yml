@@ -82,7 +82,7 @@ jobs:
         run: |
           mkdir -p release-assets
           shopt -s nullglob
-          for f in dist-desktop/*.exe dist-desktop/*.dmg dist-desktop/*.zip dist-desktop/*.AppImage dist-desktop/*.deb; do
+          for f in dist-desktop/*.exe dist-desktop/*.dmg dist-desktop/*.zip dist-desktop/*.AppImage dist-desktop/*.deb dist-desktop/*.blockmap dist-desktop/latest*.yml; do
             # Normalize spaces in filenames to hyphens for clean download URLs
             base="$(basename "$f")"
             clean_name="${base// /-}"

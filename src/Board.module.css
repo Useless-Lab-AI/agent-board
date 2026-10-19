@@ -2393,6 +2393,99 @@
   cursor: pointer;
 }
 
+.versionChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--c-d6dfd9);
+  background: var(--c-ffffff);
+  color: var(--c-4c5d54);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.versionChip:hover {
+  border-color: var(--c-9ab8a8);
+  background: var(--c-f4f8f5);
+  color: var(--c-1e2a24);
+}
+.versionChipUpdate {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+
+.updateBanner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--c-e6f3ec);
+  border: 1px solid var(--c-b7d8c6);
+  color: var(--c-1d4332);
+  font-size: 12.5px;
+}
+.updateBannerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.updateBannerTitle {
+  font-weight: 600;
+  color: var(--c-163829);
+}
+.updateBannerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.updatePrimaryBtn {
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 0;
+  background: var(--c-1c523e);
+  color: var(--c-ffffff);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.updatePrimaryBtn:hover {
+  opacity: 0.92;
+}
+.updateSecondaryBtn {
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--c-bdd4c7);
+  background: var(--c-ffffff);
+  color: var(--c-284b3a);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.updateProgressTrack {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(28, 82, 62, 0.16);
+  overflow: hidden;
+}
+.updateProgressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--c-1c523e);
+  transition: width 0.2s ease;
+}
+
 .remoteModal {
   width: min(460px, calc(100vw - 24px));
   height: auto;

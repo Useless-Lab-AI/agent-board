@@ -280,4 +280,20 @@ export const enUS: Translations = {
     pwaBannerDismiss: 'Got it',
     close: 'Close',
   },
+  updater: {
+    checkBtn: 'Check Updates',
+    checking: 'Checking…',
+    upToDate: (version: string) => `Up to date (v${version})`,
+    availableBadge: (version: string) => `⬆ Update v${version}`,
+    bannerTitle: (latest: string, current: string) => `🎉 New version v${latest} available (current v${current})`,
+    downloadingTitle: (version: string, percent: number) => `⏳ Downloading update v${version}… ${percent}%`,
+    downloadedTitle: (version: string) => `✅ Update v${version} is ready to install`,
+    errorTitle: (msg: string) => `⚠️ Auto-update issue: ${msg}`,
+    updateNowBtn: '⚡ Update Now',
+    restartInstallBtn: '🚀 Restart & Install',
+    downloadManualBtn: '📥 Download from GitHub',
+    releaseNotesBtn: 'Release Notes',
+    dismissBtn: 'Later',
+  },
 };
+

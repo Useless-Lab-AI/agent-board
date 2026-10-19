@@ -17,7 +17,7 @@
   },
   "scripts": {
     "dev": "tsx watch server/api.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "build:bridge": "node scripts/build-bridge.mjs",
     "setup:bridge": "node scripts/build-bridge.mjs --install",
     "build:server": "tsc -p tsconfig.server.json",
@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
+    "electron-updater": "^6.8.9",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",

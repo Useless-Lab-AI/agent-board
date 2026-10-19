@@ -4,6 +4,13 @@
   "productName": "Agent Board",
   "artifactName": "Agent-Board-${version}-${os}-${arch}.${ext}",
   "copyright": "Copyright © 2026 Agent Board Contributors",
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "Useless-Lab-AI",
+      "repo": "agent-board"
+    }
+  ],
   "directories": {
     "output": "dist-desktop",
     "buildResources": "build"

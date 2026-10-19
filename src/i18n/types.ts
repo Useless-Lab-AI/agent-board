@@ -283,4 +283,20 @@ export interface Translations {
     pwaBannerDismiss: string;
     close: string;
   };
+  updater: {
+    checkBtn: string;
+    checking: string;
+    upToDate: (version: string) => string;
+    availableBadge: (version: string) => string;
+    bannerTitle: (latest: string, current: string) => string;
+    downloadingTitle: (version: string, percent: number) => string;
+    downloadedTitle: (version: string) => string;
+    errorTitle: (msg: string) => string;
+    updateNowBtn: string;
+    restartInstallBtn: string;
+    downloadManualBtn: string;
+    releaseNotesBtn: string;
+    dismissBtn: string;
+  };
 }
+

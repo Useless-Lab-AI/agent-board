@@ -13,10 +13,14 @@ import {
   type NativeImage,
 } from 'electron';
 import http from 'node:http';
+import https from 'node:https';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import electronUpdater from 'electron-updater';
+
+const { autoUpdater } = electronUpdater;
 
 // Set AppUserModelId for Windows notifications and taskbar grouping
 if (process.platform === 'win32') {
@@ -394,6 +398,352 @@ function ensureBridgeInstalled(notifyUser = false) {
   }
 }
 
+const GITHUB_REPO = 'Useless-Lab-AI/agent-board';
+const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
+
+export interface AppUpdateState {
+  status:
+    | 'idle'
+    | 'checking'
+    | 'available'
+    | 'not-available'
+    | 'downloading'
+    | 'downloaded'
+    | 'error';
+  currentVersion: string;
+  latestVersion: string | null;
+  releaseUrl: string;
+  downloadUrl: string | null;
+  progressPercent: number | null;
+  error: string | null;
+}
+
+const updateState: AppUpdateState = {
+  status: 'idle',
+  currentVersion: app.getVersion(),
+  latestVersion: null,
+  releaseUrl: GITHUB_RELEASES_URL,
+  downloadUrl: null,
+  progressPercent: null,
+  error: null,
+};
+
+let downloadedInstallerPath: string | null = null;
+let usedNativeUpdater = false;
+let notifiedUpdateVersion: string | null = null;
+let updateCheckTimer: ReturnType<typeof setInterval> | null = null;
+
+function broadcastUpdateState() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('desktop:update-state', { ...updateState });
+  }
+}
+
+function compareSemver(a: string, b: string): number {
+  const parse = (v: string) =>
+    v
+      .replace(/^v/i, '')
+      .split('-')[0]
+      .split('.')
+      .map((n) => Number.parseInt(n, 10) || 0);
+  const [aMaj = 0, aMin = 0, aPat = 0] = parse(a);
+  const [bMaj = 0, bMin = 0, bPat = 0] = parse(b);
+  if (aMaj !== bMaj) return aMaj - bMaj;
+  if (aMin !== bMin) return aMin - bMin;
+  return aPat - bPat;
+}
+
+function setupNativeAutoUpdater() {
+  try {
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
+    // Allow unsigned NSIS updates on Windows
+    (autoUpdater as any).verifyUpdateCodeSignature = false;
+
+    (autoUpdater as any).on('before-quit-for-update', () => {
+      isQuitting = true;
+    });
+
+    autoUpdater.on('download-progress', (info) => {
+      updateState.status = 'downloading';
+      updateState.progressPercent = Math.max(0, Math.min(100, Math.round(info.percent || 0)));
+      broadcastUpdateState();
+    });
+
+    autoUpdater.on('update-downloaded', () => {
+      usedNativeUpdater = true;
+      updateState.status = 'downloaded';
+      updateState.progressPercent = 100;
+      updateState.error = null;
+      broadcastUpdateState();
+    });
+  } catch (err) {
+    console.warn('[Agent Board Desktop] autoUpdater init warning:', err);
+  }
+}
+
+async function checkForAppUpdates(manual = false): Promise<AppUpdateState> {
+  if (updateState.status === 'checking' || updateState.status === 'downloading') {
+    return { ...updateState };
+  }
+
+  updateState.currentVersion = app.getVersion();
+  updateState.status = 'checking';
+  updateState.error = null;
+  broadcastUpdateState();
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': `Agent-Board/${updateState.currentVersion}`,
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) {
+      throw new Error(`GitHub Releases HTTP ${res.status}`);
+    }
+
+    const release = (await res.json()) as {
+      tag_name?: string;
+      html_url?: string;
+      assets?: Array<{ name?: string; browser_download_url?: string }>;
+    };
+
+    const latestVersion =
+      String(release.tag_name ?? '')
+        .replace(/^v/i, '')
+        .trim() || updateState.currentVersion;
+    const releaseUrl = release.html_url || GITHUB_RELEASES_URL;
+
+    let downloadUrl: string | null = null;
+    const assets = Array.isArray(release.assets) ? release.assets : [];
+    const plat = process.platform;
+    const arch = process.arch;
+
+    for (const a of assets) {
+      const name = String(a.name ?? '').toLowerCase();
+      const dl = a.browser_download_url ?? null;
+      if (!dl || name.endsWith('.blockmap') || name.endsWith('.yml') || name.endsWith('.txt')) {
+        continue;
+      }
+      if (plat === 'win32' && name.endsWith('.exe')) {
+        downloadUrl = dl;
+        break;
+      }
+      if (plat === 'darwin' && name.endsWith('.dmg')) {
+        if ((arch === 'arm64' && name.includes('arm64')) || (arch !== 'arm64' && name.includes('x64'))) {
+          downloadUrl = dl;
+          break;
+        }
+        if (!downloadUrl) downloadUrl = dl;
+      }
+      if (plat === 'linux' && (name.endsWith('.appimage') || name.endsWith('.deb'))) {
+        if (name.endsWith('.appimage')) {
+          downloadUrl = dl;
+          break;
+        }
+        if (!downloadUrl) downloadUrl = dl;
+      }
+    }
+
+    updateState.latestVersion = latestVersion;
+    updateState.releaseUrl = releaseUrl;
+    updateState.downloadUrl = downloadUrl;
+
+    if (compareSemver(latestVersion, updateState.currentVersion) > 0) {
+      updateState.status = 'available';
+      broadcastUpdateState();
+
+      if (Notification.isSupported() && (manual || notifiedUpdateVersion !== latestVersion)) {
+        notifiedUpdateVersion = latestVersion;
+        const n = new Notification({
+          title: `Agent Board 发现新版本 v${latestVersion}`,
+          body: `当前版本 v${updateState.currentVersion}，点击打开看板即可一键下载升级。`,
+          icon: getIconPath() || undefined,
+        });
+        n.on('click', () => showMainWindow());
+        n.show();
+      }
+    } else {
+      updateState.status = 'not-available';
+      broadcastUpdateState();
+
+      if (manual && Notification.isSupported()) {
+        new Notification({
+          title: 'Agent Board 已是最新版本',
+          body: `当前版本 v${updateState.currentVersion} 已是最新发布的版本。`,
+          icon: getIconPath() || undefined,
+        }).show();
+      }
+    }
+  } catch (err) {
+    updateState.status = manual ? 'error' : 'idle';
+    updateState.error = (err as Error).message || String(err);
+    broadcastUpdateState();
+    if (manual && Notification.isSupported()) {
+      new Notification({
+        title: '检查更新失败',
+        body: updateState.error,
+        icon: getIconPath() || undefined,
+      }).show();
+    }
+  }
+
+  return { ...updateState };
+}
+
+function downloadFileWithProgress(urlStr: string, destPath: string, redirectsLeft = 5): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (redirectsLeft < 0) {
+      reject(new Error('Too many redirects while downloading update installer'));
+      return;
+    }
+    const client = urlStr.startsWith('https:') ? https : http;
+    const req = client.get(
+      urlStr,
+      {
+        headers: {
+          'User-Agent': `Agent-Board/${updateState.currentVersion}`,
+        },
+      },
+      (res) => {
+        if (
+          res.statusCode &&
+          res.statusCode >= 300 &&
+          res.statusCode < 400 &&
+          res.headers.location
+        ) {
+          res.resume();
+          const nextUrl = new URL(res.headers.location, urlStr).toString();
+          downloadFileWithProgress(nextUrl, destPath, redirectsLeft - 1)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          reject(new Error(`Download HTTP ${res.statusCode}`));
+          return;
+        }
+
+        const totalBytes = Number(res.headers['content-length'] ?? 0);
+        let receivedBytes = 0;
+        const fileStream = fs.createWriteStream(destPath);
+
+        res.on('data', (chunk: Buffer) => {
+          receivedBytes += chunk.length;
+          if (totalBytes > 0) {
+            const pct = Math.max(1, Math.min(99, Math.round((receivedBytes / totalBytes) * 100)));
+            if (pct !== updateState.progressPercent) {
+              updateState.progressPercent = pct;
+              broadcastUpdateState();
+            }
+          }
+        });
+
+        res.pipe(fileStream);
+
+        fileStream.on('finish', () => {
+          fileStream.close(() => resolve(destPath));
+        });
+
+        fileStream.on('error', (err) => {
+          fs.unlink(destPath, () => {});
+          reject(err);
+        });
+      },
+    );
+
+    req.on('error', (err) => {
+      fs.unlink(destPath, () => {});
+      reject(err);
+    });
+  });
+}
+
+async function startAppUpdate(): Promise<AppUpdateState> {
+  if (updateState.status === 'downloading') {
+    return { ...updateState };
+  }
+
+  updateState.status = 'downloading';
+  updateState.progressPercent = 0;
+  updateState.error = null;
+  usedNativeUpdater = false;
+  downloadedInstallerPath = null;
+  broadcastUpdateState();
+
+  // Strategy 1: Native electron-updater on packaged Windows / Linux AppImage
+  if (app.isPackaged && (process.platform === 'win32' || process.platform === 'linux')) {
+    try {
+      const checkRes = await autoUpdater.checkForUpdates();
+      if (checkRes && checkRes.updateInfo && compareSemver(checkRes.updateInfo.version, updateState.currentVersion) > 0) {
+        await autoUpdater.downloadUpdate();
+        usedNativeUpdater = true;
+        updateState.status = 'downloaded';
+        updateState.progressPercent = 100;
+        broadcastUpdateState();
+        return { ...updateState };
+      }
+    } catch (nativeErr) {
+      console.warn('[Agent Board Desktop] electron-updater fallback to direct installer download:', nativeErr);
+    }
+  }
+
+  // Strategy 2: Direct installer download from GitHub Release asset with live progress
+  if (updateState.downloadUrl) {
+    try {
+      const parsedUrl = new URL(updateState.downloadUrl);
+      const fileName = path.basename(parsedUrl.pathname) || `Agent-Board-${updateState.latestVersion || 'latest'}-installer.exe`;
+      const destPath = path.join(app.getPath('temp'), fileName);
+      await downloadFileWithProgress(updateState.downloadUrl, destPath);
+      downloadedInstallerPath = destPath;
+      usedNativeUpdater = false;
+      updateState.status = 'downloaded';
+      updateState.progressPercent = 100;
+      updateState.error = null;
+      broadcastUpdateState();
+      return { ...updateState };
+    } catch (dlErr) {
+      updateState.status = 'error';
+      updateState.error = (dlErr as Error).message || String(dlErr);
+      broadcastUpdateState();
+      return { ...updateState };
+    }
+  }
+
+  // Strategy 3: Open release page in browser if no direct installer asset found
+  await shell.openExternal(updateState.releaseUrl);
+  updateState.status = 'available';
+  broadcastUpdateState();
+  return { ...updateState };
+}
+
+async function installAppUpdate(): Promise<void> {
+  if (usedNativeUpdater) {
+    isQuitting = true;
+    setImmediate(() => {
+      autoUpdater.quitAndInstall(false, true);
+    });
+    return;
+  }
+
+  if (downloadedInstallerPath && fs.existsSync(downloadedInstallerPath)) {
+    isQuitting = true;
+    await shell.openPath(downloadedInstallerPath);
+    if (process.platform === 'win32') {
+      setTimeout(() => {
+        app.quit();
+      }, 600);
+    }
+    return;
+  }
+
+  await shell.openExternal(updateState.downloadUrl || updateState.releaseUrl);
+}
+
 function createTray() {
   try {
     const trayIcon = getTrayIcon();
@@ -401,7 +751,7 @@ function createTray() {
       return;
     }
     tray = new Tray(trayIcon);
-    tray.setToolTip('Agent Board · 会话看板');
+    tray.setToolTip(`Agent Board v${app.getVersion()} · 会话看板`);
 
     const contextMenu = Menu.buildFromTemplate([
       {
@@ -413,6 +763,13 @@ function createTray() {
         click: () => {
           showMainWindow();
           mainWindow?.webContents.send('desktop:open-remote-control');
+        },
+      },
+      {
+        label: '🔄 检查更新 (Check for Updates…)',
+        click: () => {
+          showMainWindow();
+          void checkForAppUpdates(true);
         },
       },
       {
@@ -474,6 +831,10 @@ function setupApplicationMenu() {
             label: app.name,
             submenu: [
               { role: 'about' as const },
+              {
+                label: '检查更新… (Check for Updates…)',
+                click: () => void checkForAppUpdates(true),
+              },
               { type: 'separator' as const },
               { role: 'services' as const },
               { type: 'separator' as const },
@@ -538,12 +899,17 @@ function setupApplicationMenu() {
       label: '帮助 (Help)',
       submenu: [
         {
+          label: '检查更新… (Check for Updates…)',
+          click: () => void checkForAppUpdates(true),
+        },
+        { type: 'separator' },
+        {
           label: '在浏览器中打开 (Open in Browser)',
           click: () => shell.openExternal(`http://127.0.0.1:${activePort}`),
         },
         {
           label: 'GitHub 仓库 (Repository)',
-          click: () => shell.openExternal('https://github.com/your-username/agent-board'),
+          click: () => shell.openExternal(`https://github.com/${GITHUB_REPO}`),
         },
       ],
     },
@@ -603,6 +969,7 @@ function createWindow() {
 
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('[Agent Board Desktop] Web page loaded successfully');
+    broadcastUpdateState();
   });
 
   mainWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL) => {
@@ -647,6 +1014,10 @@ ipcMain.handle('desktop:maximize', () => {
   else mainWindow?.maximize();
 });
 ipcMain.handle('desktop:close', () => mainWindow?.close());
+ipcMain.handle('desktop:get-update-state', () => ({ ...updateState }));
+ipcMain.handle('desktop:check-updates', (_e, manual = false) => checkForAppUpdates(Boolean(manual)));
+ipcMain.handle('desktop:start-update', () => startAppUpdate());
+ipcMain.handle('desktop:install-update', () => installAppUpdate());
 
 app.on('second-instance', () => {
   showMainWindow();
@@ -659,6 +1030,10 @@ app.on('activate', () => {
 app.on('before-quit', () => {
   isQuitting = true;
   saveWindowBounds();
+  if (updateCheckTimer) {
+    clearInterval(updateCheckTimer);
+    updateCheckTimer = null;
+  }
   if (sseReq) sseReq.destroy();
   if (serverChild) {
     serverChild.kill();
@@ -667,6 +1042,7 @@ app.on('before-quit', () => {
 });
 
 app.whenReady().then(async () => {
+  setupNativeAutoUpdater();
   setupApplicationMenu();
   createTray();
   ensureBridgeInstalled(false);
@@ -675,8 +1051,20 @@ app.whenReady().then(async () => {
     await startServer();
     showMainWindow();
     connectEventStream();
+
+    // Check for updates 6s after startup and every 4 hours thereafter
+    setTimeout(() => {
+      void checkForAppUpdates(false);
+    }, 6000);
+    updateCheckTimer = setInterval(
+      () => {
+        void checkForAppUpdates(false);
+      },
+      4 * 60 * 60 * 1000,
+    );
   } catch (err) {
     console.error('[Agent Board Desktop] Startup error:', err);
     app.quit();
   }
 });
+
