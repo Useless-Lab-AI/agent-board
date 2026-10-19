@@ -1,15 +1,23 @@
 import { execFile } from 'node:child_process';
 import { existsSync, watch, type FSWatcher } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { NativeSession } from './discovery.js';
+import type { InteractionRequest } from '../shared/interaction.js';
 import type { LiveClient, LiveState } from './live-client.js';
-import { getAntigravitySummaries, getAntigravityExecution } from './antigravity-meta.js';
+import {
+  getAntigravitySummaries,
+  getAntigravityExecution,
+  getAntigravityPendingAskQuestion,
+} from './antigravity-meta.js';
 import {
   resolveAntigravityCredentials,
   invalidateAntigravityCredentialsCache,
   sendAntigravityUserMessage,
+  getAntigravityPendingAskQuestionStep,
+  submitAntigravityAskQuestion,
+  type AntigravityActiveAskQuestionStep,
 } from './antigravity-ls.js';
 
 export interface ApiRunner {
@@ -83,6 +91,7 @@ export class AntigravityClient implements LiveClient {
   private watchTimer?: NodeJS.Timeout;
   private transcriptPath?: string;
   private justSentAt = 0;
+  private activeAskQuestion?: AntigravityActiveAskQuestionStep;
 
   constructor(
     private session: NativeSession,
@@ -135,21 +144,87 @@ export class AntigravityClient implements LiveClient {
     const runner = await getAgentApiRunner(this.antigravityHome);
     const summaries = getAntigravitySummaries(this.antigravityHome);
     const summary = summaries.get(this.session.nativeId);
-    let exec = getAntigravityExecution(summary, this.getTranscriptPath());
+    const tPath = this.getTranscriptPath();
+    let exec = getAntigravityExecution(summary, tPath);
 
-    if (Date.now() - this.justSentAt < 3000 && exec.state === 'IDLE') {
+    if (Date.now() - this.justSentAt < 3000 && (exec.state === 'IDLE' || exec.state === 'WAITING_INPUT')) {
       exec = { state: 'RUNNING', reason: '智能体正在处理发送的消息' };
     }
 
-    const isRunning = exec.state === 'RUNNING';
     const isTestEnv = !!process.env.AGENT_BOARD_ANTIGRAVITY_HOME;
     const creds = !isTestEnv ? await resolveAntigravityCredentials(runner?.exe) : null;
     const hasServer = isTestEnv ? !!runner : !!creds;
-    const canSend = hasServer && !isRunning;
+
+    if (exec.state === 'WAITING_INPUT') {
+      const pendingFromTranscript = getAntigravityPendingAskQuestion(tPath);
+      if (creds) {
+        const lsCheck = await getAntigravityPendingAskQuestionStep(
+          creds,
+          this.session.nativeId,
+          pendingFromTranscript?.transcriptStepIndex ?? 0,
+        );
+        if (lsCheck.status === 'waiting') {
+          this.activeAskQuestion = lsCheck.step;
+        } else if (lsCheck.status === 'completed') {
+          this.activeAskQuestion = undefined;
+          exec = { state: 'IDLE', reason: 'Antigravity 会话就绪 / 空闲' };
+        } else if (pendingFromTranscript) {
+          this.activeAskQuestion = {
+            trajectoryId: '',
+            stepIndex: pendingFromTranscript.transcriptStepIndex + 1,
+            title: pendingFromTranscript.title,
+            rawQuestions: pendingFromTranscript.rawQuestions,
+          };
+        } else {
+          this.activeAskQuestion = undefined;
+        }
+      } else if (pendingFromTranscript) {
+        this.activeAskQuestion = {
+          trajectoryId: 'test-trajectory',
+          stepIndex: pendingFromTranscript.transcriptStepIndex + 1,
+          title: pendingFromTranscript.title,
+          rawQuestions: pendingFromTranscript.rawQuestions,
+        };
+      } else {
+        this.activeAskQuestion = undefined;
+      }
+    } else {
+      this.activeAskQuestion = undefined;
+    }
+
+    if (exec.state === 'WAITING_INPUT' && this.activeAskQuestion && hasServer) {
+      const reqId = `ask_question_${this.activeAskQuestion.stepIndex}`;
+      const pending: InteractionRequest[] = [
+        {
+          id: reqId,
+          kind: 'question',
+          title: this.activeAskQuestion.title || 'AI 需要你的回答',
+          detail: '',
+          questions: this.activeAskQuestion.rawQuestions.map((q, idx) => ({
+            id: q.question || `q_${idx + 1}`,
+            text: q.question,
+            options: q.options.map((o) => o.text),
+            ...(q.isMultiSelect ? { multiple: true } : {}),
+          })),
+        },
+      ];
+      return {
+        epoch: this.epoch,
+        phase: 'WAITING_INPUT',
+        reason: 'Antigravity 智能体正在等待你回答问题；可直接在此选择选项并提交，或在原客户端处理',
+        pending,
+        canSend: false,
+        canInterrupt: false,
+      };
+    }
+
+    const isRunning = exec.state === 'RUNNING';
+    const isWaiting = exec.state === 'WAITING_INPUT';
+    const canSend = hasServer && !isRunning && !isWaiting;
 
     return {
       epoch: this.epoch,
-      phase: isRunning ? 'RUNNING' : canSend ? 'READY' : 'OBSERVE_ONLY',
+      phase: isRunning ? 'RUNNING' : isWaiting ? 'WAITING_INPUT' : canSend ? 'READY' : 'OBSERVE_ONLY',
       reason: isRunning
         ? `Antigravity 智能体正在执行中（${exec.reason}）；执行完成后可继续发送`
         : !hasServer && !!runner
@@ -275,8 +350,223 @@ export class AntigravityClient implements LiveClient {
     });
   }
 
-  async decision(): Promise<void> {
-    throw new Error('暂不支持在看板中进行交互决策');
+  async decision(id: string, body: Record<string, unknown>): Promise<void> {
+    const active = this.activeAskQuestion;
+    if (!active || `ask_question_${active.stepIndex}` !== id) {
+      throw new Error('该问题已在原客户端回答或已过期');
+    }
+
+    const action = typeof body.action === 'string' ? body.action : 'submit';
+    const cancelled = action === 'cancel';
+    const answers = (
+      body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers)
+        ? body.answers
+        : {}
+    ) as Record<string, string>;
+    const questionDetails = (
+      body.questionDetails &&
+      typeof body.questionDetails === 'object' &&
+      !Array.isArray(body.questionDetails)
+        ? body.questionDetails
+        : {}
+    ) as Record<
+      string,
+      { selectedOptions?: string[]; writeIn?: string; skipped?: boolean }
+    >;
+
+    const responses = cancelled
+      ? []
+      : active.rawQuestions.map((q, idx) => {
+          const qKey = q.question || `q_${idx + 1}`;
+          const detail = questionDetails[qKey];
+          const rawAns = String(answers[qKey] ?? '').trim();
+
+          if (action === 'skip' || detail?.skipped || rawAns === '(Skipped)') {
+            return {
+              question: q.question,
+              options: q.options,
+              isMultiSelect: q.isMultiSelect,
+              selectedOptionIds: [],
+              writeInResponse: '',
+              skipped: true,
+            };
+          }
+
+          if (
+            detail &&
+            (Array.isArray(detail.selectedOptions) || typeof detail.writeIn === 'string')
+          ) {
+            const selOpts = Array.isArray(detail.selectedOptions) ? detail.selectedOptions : [];
+            const selectedOptionIds = selOpts
+              .map((sel) => q.options.find((o) => o.text === sel || o.id === sel)?.id)
+              .filter((x): x is string => Boolean(x));
+            const writeInResponse = typeof detail.writeIn === 'string' ? detail.writeIn.trim() : '';
+            return {
+              question: q.question,
+              options: q.options,
+              isMultiSelect: q.isMultiSelect,
+              selectedOptionIds,
+              writeInResponse,
+              skipped: false,
+            };
+          }
+
+          if (!q.isMultiSelect) {
+            const matched = q.options.find((o) => o.text === rawAns || o.id === rawAns);
+            if (matched) {
+              return {
+                question: q.question,
+                options: q.options,
+                isMultiSelect: false,
+                selectedOptionIds: [matched.id],
+                writeInResponse: '',
+                skipped: false,
+              };
+            }
+            return {
+              question: q.question,
+              options: q.options,
+              isMultiSelect: false,
+              selectedOptionIds: [],
+              writeInResponse: rawAns,
+              skipped: false,
+            };
+          }
+
+          // Multi-select string fallback
+          const directMatch = q.options.find((o) => o.text === rawAns || o.id === rawAns);
+          if (directMatch) {
+            return {
+              question: q.question,
+              options: q.options,
+              isMultiSelect: true,
+              selectedOptionIds: [directMatch.id],
+              writeInResponse: '',
+              skipped: false,
+            };
+          }
+          const parts = rawAns
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const selectedOptionIds: string[] = [];
+          const unmatched: string[] = [];
+          for (const part of parts) {
+            const m = q.options.find((o) => o.text === part || o.id === part);
+            if (m) {
+              if (!selectedOptionIds.includes(m.id)) selectedOptionIds.push(m.id);
+            } else {
+              unmatched.push(part);
+            }
+          }
+          return {
+            question: q.question,
+            options: q.options,
+            isMultiSelect: true,
+            selectedOptionIds,
+            writeInResponse: unmatched.join(', '),
+            skipped: false,
+          };
+        });
+
+    const isTestEnv = !!process.env.AGENT_BOARD_ANTIGRAVITY_HOME;
+    if (!isTestEnv) {
+      const runner = await getAgentApiRunner(this.antigravityHome);
+      let creds = await resolveAntigravityCredentials(runner?.exe);
+      if (!creds) {
+        throw new Error('未检测到 Antigravity 运行中的语言服务，请确保 Antigravity 原客户端正在运行');
+      }
+
+      let trajectoryId = active.trajectoryId;
+      let stepIndex = active.stepIndex;
+      if (!trajectoryId) {
+        const lsCheck = await getAntigravityPendingAskQuestionStep(
+          creds,
+          this.session.nativeId,
+          Math.max(0, active.stepIndex - 1),
+        );
+        if (lsCheck.status === 'waiting') {
+          trajectoryId = lsCheck.step.trajectoryId;
+          stepIndex = lsCheck.step.stepIndex;
+        }
+      }
+
+      this.justSentAt = Date.now();
+      let rpcRes = await submitAntigravityAskQuestion(creds, this.session.nativeId, {
+        trajectoryId,
+        stepIndex,
+        responses,
+        cancelled,
+      });
+
+      if (
+        !rpcRes.ok &&
+        (rpcRes.error?.includes('ECONNREFUSED') ||
+          rpcRes.error?.includes('socket hang up') ||
+          rpcRes.error?.includes('connection error') ||
+          rpcRes.error?.includes('Unavailable') ||
+          rpcRes.statusCode === 401 ||
+          rpcRes.statusCode === 403)
+      ) {
+        invalidateAntigravityCredentialsCache();
+        const freshCreds = await resolveAntigravityCredentials(runner?.exe);
+        if (freshCreds) {
+          creds = freshCreds;
+          rpcRes = await submitAntigravityAskQuestion(creds, this.session.nativeId, {
+            trajectoryId,
+            stepIndex,
+            responses,
+            cancelled,
+          });
+        }
+      }
+
+      if (!rpcRes.ok) {
+        throw new Error(`Antigravity 问题回答提交失败: ${rpcRes.error || '未知错误'}`);
+      }
+
+      this.activeAskQuestion = undefined;
+      this.justSentAt = Date.now();
+      setTimeout(() => {
+        try {
+          this.onUpdateCallback?.();
+        } catch {}
+      }, 80);
+      return;
+    }
+
+    // Isolated test environment: append GENERIC answer record to transcript.jsonl
+    const tPath = this.getTranscriptPath();
+    const nowIso = new Date().toISOString();
+    const answerLines = cancelled
+      ? ['Cancelled by user']
+      : responses.map((r, idx) => {
+          if (r.skipped) return `A${idx + 1}: (Skipped)`;
+          const optTexts = (r.selectedOptionIds ?? [])
+            .map((id) => r.options.find((o) => o.id === id)?.text)
+            .filter(Boolean);
+          const combined = [
+            ...optTexts,
+            ...(r.writeInResponse ? [r.writeInResponse] : []),
+          ].join(', ');
+          return `A${idx + 1}: ${combined}`;
+        });
+    const genericRecord = {
+      step_index: active.stepIndex,
+      type: 'GENERIC',
+      status: cancelled ? 'CANCELED' : 'DONE',
+      created_at: nowIso,
+      conversation_id: this.session.nativeId,
+      content: `Created At: ${nowIso}\nCompleted At: ${nowIso}\n\n${answerLines.join('\n')}`,
+    };
+    await appendFile(tPath, JSON.stringify(genericRecord) + '\n', 'utf8');
+    this.activeAskQuestion = undefined;
+    this.justSentAt = Date.now();
+    setTimeout(() => {
+      try {
+        this.onUpdateCallback?.();
+      } catch {}
+    }, 50);
   }
 
   async interrupt(): Promise<void> {

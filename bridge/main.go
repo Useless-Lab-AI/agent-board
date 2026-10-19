@@ -541,6 +541,9 @@ func main() {
 
 	cmd := exec.Command(targetExe, actualArgs...)
 	cmd.Env = os.Environ()
+	if curEp := os.Getenv("CLAUDE_CODE_ENTRYPOINT"); curEp == "" || curEp == "sdk-cli" || curEp == "cli" {
+		cmd.Env = append(cmd.Env, "CLAUDE_CODE_ENTRYPOINT=claude-vscode")
+	}
 
 	childStdin, err := cmd.StdinPipe()
 	if err != nil {

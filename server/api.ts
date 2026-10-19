@@ -19,6 +19,7 @@ import type { InteractionAttachment } from '../shared/interaction.js';
 import { createSession } from './session-creator.js';
 import { getAvailableModels } from './models.js';
 import { extractRequestToken, RemoteControlManager } from './remote-control.js';
+import { buildWaitingPushPayload, WebPushManager } from './web-push.js';
 const port = Number(process.env.AGENT_BOARD_PORT ?? 4317);
 const listenHost = process.env.AGENT_BOARD_HOST ?? '0.0.0.0';
 const codexHome = process.env.AGENT_BOARD_CODEX_HOME ?? path.join(os.homedir(), '.codex');
@@ -32,6 +33,9 @@ const store = new SessionStore(
   process.env.AGENT_BOARD_DATA ??
     path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), '.local', 'share'), 'AgentBoard'),
 );
+const webPush = new WebPushManager(store);
+let pushBaselineInitialized = false;
+const notifiedWaitingStates = new Map<string, string>();
 const discovery = new Discovery(
   [
     { provider: 'codex', root: path.join(codexHome, 'sessions') },
@@ -68,6 +72,7 @@ const interactions = new Interactions(codexHome, claudeHome, (id) => {
   if (runtimeStates.get(id) !== state) {
     runtimeStates.set(id, state);
     broadcast('change', {});
+    checkAndDispatchPushNotifications();
     void reconcile();
   }
 }, antigravityHome);
@@ -318,6 +323,7 @@ async function reconcile() {
       initialized = true;
       const after = fingerprint();
       if (after !== before) broadcast('change', {});
+      checkAndDispatchPushNotifications();
     } while (pendingReconcile);
   })()
     .catch(() => {
@@ -328,6 +334,57 @@ async function reconcile() {
       scan = undefined;
     });
   return scan;
+}
+
+function checkAndDispatchPushNotifications() {
+  if (!initialized) return;
+  const currentWaiting = new Map<string, SessionView>();
+  for (const id of discovery.sessions.keys()) {
+    try {
+      const v = view(id);
+      if (
+        !v.archived &&
+        (v.execution === 'WAITING_APPROVAL' || v.execution === 'WAITING_INPUT')
+      ) {
+        currentWaiting.set(id, v);
+      }
+    } catch {}
+  }
+
+  if (!pushBaselineInitialized) {
+    pushBaselineInitialized = true;
+    for (const [id, v] of currentWaiting) {
+      notifiedWaitingStates.set(id, `${v.execution}:${v.stateReason}`);
+    }
+    return;
+  }
+
+  for (const id of [...notifiedWaitingStates.keys()]) {
+    if (!currentWaiting.has(id)) {
+      notifiedWaitingStates.delete(id);
+    }
+  }
+
+  for (const [id, v] of currentWaiting) {
+    const stateSignature = `${v.execution}:${v.stateReason}`;
+    if (notifiedWaitingStates.get(id) !== stateSignature) {
+      notifiedWaitingStates.set(id, stateSignature);
+      if (webPush.getSubscriptionCount() > 0) {
+        void webPush.sendToAll((sub) =>
+          buildWaitingPushPayload(
+            {
+              id: v.id,
+              provider: v.provider,
+              title: v.title,
+              execution: v.execution as 'WAITING_APPROVAL' | 'WAITING_INPUT',
+              stateReason: v.stateReason,
+            },
+            sub.lang,
+          ),
+        );
+      }
+    }
+  }
 }
 
 const rootWatchers: FSWatcher[] = [];
@@ -348,7 +405,7 @@ function initRootWatchers() {
       watchDirs.add(root.root);
     }
   }
-  for (const sub of ['agent-board-bridges', 'sessions']) {
+  for (const sub of ['agent-board-bridges', 'agent-board-channels', 'sessions']) {
     const dir = path.join(claudeHome, sub);
     if (existsSync(dir)) {
       watchDirs.add(dir);
@@ -434,7 +491,10 @@ function view(id: string): SessionView {
     attention,
     archived: !!meta.archived,
     discoveredAt: meta.discovered,
-    updatedAt: s.files.length ? Math.max(0, ...s.files.map((f) => f.mtime)) : (s.createdAt ?? 0),
+    updatedAt: Math.max(
+      s.files.length ? Math.max(0, ...s.files.map((f) => f.mtime)) : (s.createdAt ?? 0),
+      obs?.activity?.lastOutputAt ?? 0,
+    ),
     diagnostics: [
       ...s.diagnostics,
       ...(obs?.diagnostics ?? []),
@@ -1086,6 +1146,73 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify(remoteControl.getStatus(false)));
       return;
     }
+    if (req.method === 'GET' && url.pathname === '/api/push/status') {
+      res.end(
+        JSON.stringify({
+          publicKey: webPush.getPublicKey(),
+          subscriptionCount: webPush.getSubscriptionCount(),
+        }),
+      );
+      return;
+    }
+    if (req.method === 'POST' && url.pathname === '/api/push/subscribe') {
+      const body = await jsonBody(req);
+      const sub = body.subscription as {
+        endpoint: string;
+        keys: { p256dh: string; auth: string };
+      };
+      const lang = typeof body.lang === 'string' ? body.lang : 'zh-CN';
+      let subscriptionCount: number;
+      try {
+        subscriptionCount = webPush.subscribe(sub, lang);
+      } catch (err) {
+        throw new HttpError(400, (err as Error).message);
+      }
+      res.end(
+        JSON.stringify({
+          ok: true,
+          publicKey: webPush.getPublicKey(),
+          subscriptionCount,
+        }),
+      );
+      return;
+    }
+    if (req.method === 'POST' && url.pathname === '/api/push/unsubscribe') {
+      const body = await jsonBody(req);
+      const endpoint = typeof body.endpoint === 'string' ? body.endpoint.trim() : '';
+      if (!endpoint) throw new HttpError(400, '缺少推送订阅地址');
+      const subscriptionCount = webPush.unsubscribe(endpoint);
+      res.end(JSON.stringify({ ok: true, subscriptionCount }));
+      return;
+    }
+    if (req.method === 'POST' && url.pathname === '/api/push/test') {
+      const body = await jsonBody(req);
+      const lang = typeof body.lang === 'string' ? body.lang : 'zh-CN';
+      const testPayload = {
+        title:
+          lang === 'en-US'
+            ? '🔔 Agent Board Push Enabled'
+            : lang === 'ja-JP'
+              ? '🔔 Agent Board プッシュ通知が有効です'
+              : lang === 'zh-TW'
+                ? '🔔 Agent Board 推送通知已開啟'
+                : '🔔 Agent Board 推送通知已开启',
+        body:
+          lang === 'en-US'
+            ? 'You will receive lock-screen alerts whenever an agent needs approval or input.'
+            : lang === 'ja-JP'
+              ? 'エージェントが承認や入力を必要とする際、ロック画面に通知が届きます。'
+              : lang === 'zh-TW'
+                ? '當代理需要確認批准或輸入回覆時，將向你的手機發送系統通知。'
+                : '当代理需要确认批准或输入回复时，将向你的手机发送系统通知。',
+        tag: 'agent-board-test',
+        url: '/',
+        requireInteraction: false,
+      };
+      const stats = await webPush.sendToAll(testPayload);
+      res.end(JSON.stringify({ ok: true, ...stats }));
+      return;
+    }
     if (req.method === 'GET' && url.pathname === '/api/pwa/install.mobileconfig') {
       const reqToken = extractRequestToken(req, port);
       const rcStatus = remoteControl.getStatus(false);
@@ -1216,28 +1343,47 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/sw.js') {
       const reqToken = extractRequestToken(req, port);
+      const validToken = reqToken && remoteControl.verifyToken(reqToken) ? reqToken : '';
       const rcStatus = remoteControl.getStatus(false);
       const lanBase = rcStatus.customUrl || rcStatus.primaryLanUrl || '';
       const fallbackUrl =
-        lanBase && reqToken && remoteControl.verifyToken(reqToken)
-          ? `${lanBase}/?rc=${encodeURIComponent(reqToken)}`
+        lanBase && validToken
+          ? `${lanBase}/?rc=${encodeURIComponent(validToken)}`
           : lanBase
             ? `${lanBase}/`
             : '';
+      const iconUrl = validToken
+        ? `/apple-touch-icon.png?rc=${encodeURIComponent(validToken)}`
+        : '/apple-touch-icon.png';
       res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
       res.setHeader('Service-Worker-Allowed', '/');
       res.end(
         `const FALLBACK_URL = ${JSON.stringify(fallbackUrl)};
+const AUTH_TOKEN = ${JSON.stringify(validToken)};
+const ICON_URL = ${JSON.stringify(iconUrl)};
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+function buildFallbackTarget(requestUrl) {
+  if (!FALLBACK_URL) return '';
+  try {
+    const reqU = new URL(requestUrl);
+    const fbU = new URL(FALLBACK_URL);
+    const session = reqU.searchParams.get('session');
+    if (session) fbU.searchParams.set('session', session);
+    return fbU.toString();
+  } catch {
+    return FALLBACK_URL;
+  }
+}
 self.addEventListener('fetch', (event) => {
   if (event.request.mode === 'navigate' && FALLBACK_URL) {
+    const target = buildFallbackTarget(event.request.url);
     event.respondWith(
       fetch(event.request)
         .then((res) => {
           if (res.status === 404 || res.status === 502 || res.status === 503 || res.status === 504) {
             return new Response(
-              '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="background:#0d1210;color:#e6ebe8;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><script>location.replace(' + JSON.stringify(FALLBACK_URL) + ');</script>正在连接 Agent Board...</body></html>',
+              '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="background:#0d1210;color:#e6ebe8;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><script>location.replace(' + JSON.stringify(target) + ');</script>正在连接 Agent Board...</body></html>',
               { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
             );
           }
@@ -1245,12 +1391,66 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() =>
           new Response(
-            '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="background:#0d1210;color:#e6ebe8;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><script>location.replace(' + JSON.stringify(FALLBACK_URL) + ');</script>正在连接 Agent Board...</body></html>',
+            '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="background:#0d1210;color:#e6ebe8;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><script>location.replace(' + JSON.stringify(target) + ');</script>正在连接 Agent Board...</body></html>',
             { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
           )
         )
     );
   }
+});
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: 'Agent Board', body: event.data ? event.data.text() : '' };
+  }
+  const title = data.title || 'Agent Board';
+  const options = {
+    body: data.body || '',
+    icon: data.icon || ICON_URL,
+    badge: data.badge || ICON_URL,
+    tag: data.tag || 'agent-board-push',
+    renotify: true,
+    requireInteraction: Boolean(data.requireInteraction),
+    vibrate: [200, 100, 200],
+    data: {
+      url: data.url || '/',
+      sessionId: data.sessionId || null,
+    },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetData = event.notification.data || {};
+  const sessionId = targetData.sessionId || null;
+  let rawUrl = targetData.url || '/';
+  try {
+    const u = new URL(rawUrl, self.location.origin);
+    if (AUTH_TOKEN && !u.searchParams.get('rc')) {
+      u.searchParams.set('rc', AUTH_TOKEN);
+    }
+    if (sessionId && !u.searchParams.get('session')) {
+      u.searchParams.set('session', sessionId);
+    }
+    rawUrl = u.pathname + u.search + u.hash;
+  } catch {}
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if ('focus' in client) {
+          if (sessionId) {
+            client.postMessage({ type: 'agent-board:open-session', sessionId });
+          }
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(rawUrl);
+      }
+    })
+  );
 });
 `,
       );

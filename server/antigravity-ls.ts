@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import { getAntigravitySummaries } from './antigravity-meta.js';
+import { getAntigravitySummaries, type AntigravityRawQuestion } from './antigravity-meta.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -248,22 +248,30 @@ async function discoverCredentialsInternal(
 export async function resolveAntigravityCredentials(
   runnerExe?: string,
 ): Promise<AntigravityCredentials | null> {
-  // 1. If explicit environment variables already set (e.g. running inside Antigravity terminal)
+  // 1. Check cached credentials first
+  const now = Date.now();
+  if (cachedCredentials && now - lastCheckTime < CACHE_TTL_MS) {
+    return cachedCredentials;
+  }
+
+  // 2. If explicit environment variables already set (e.g. running inside Antigravity terminal),
+  // probe the HTTP endpoint once to ensure the port/token are not stale after a client restart.
   if (
     !envCredsInvalidated &&
     process.env.ANTIGRAVITY_LS_ADDRESS &&
     process.env.ANTIGRAVITY_CSRF_TOKEN
   ) {
-    return {
-      address: process.env.ANTIGRAVITY_LS_ADDRESS,
-      csrfToken: process.env.ANTIGRAVITY_CSRF_TOKEN,
-    };
-  }
-
-  // 2. Check cached credentials
-  const now = Date.now();
-  if (cachedCredentials && now - lastCheckTime < CACHE_TTL_MS) {
-    return cachedCredentials;
+    const [, portStr] = process.env.ANTIGRAVITY_LS_ADDRESS.split(':');
+    const port = Number(portStr);
+    if (port && (await probeHttpPort(port, process.env.ANTIGRAVITY_CSRF_TOKEN))) {
+      cachedCredentials = {
+        address: process.env.ANTIGRAVITY_LS_ADDRESS,
+        csrfToken: process.env.ANTIGRAVITY_CSRF_TOKEN,
+      };
+      lastCheckTime = Date.now();
+      return cachedCredentials;
+    }
+    envCredsInvalidated = true;
   }
 
   // 3. Deduplicate concurrent discovery calls
@@ -376,6 +384,139 @@ async function callLanguageServerRpc(
   });
 }
 
+function isValidModelEnum(val: unknown): val is string {
+  return (
+    typeof val === 'string' &&
+    val.trim().length > 0 &&
+    val !== 'MODEL_UNSPECIFIED' &&
+    val !== 'UNSPECIFIED'
+  );
+}
+
+export async function resolveCascadeConfigForMessage(
+  creds: AntigravityCredentials,
+  cascadeId: string,
+): Promise<{
+  cascadeConfig: Record<string, unknown>;
+  customAgentSpec: Record<string, unknown>;
+}> {
+  let planModel = '';
+  let autoExecutionPolicy = 'CASCADE_COMMANDS_AUTO_EXECUTION_EAGER';
+  let artifactReviewMode = 'ARTIFACT_REVIEW_MODE_TURBO';
+  let useAiCredits: boolean | undefined = undefined;
+
+  // 1. Inspect conversation's generator metadata to preserve its existing model & tool settings
+  const genMetaRes = await callLanguageServerRpc(
+    creds,
+    'GetCascadeTrajectoryGeneratorMetadata',
+    {
+      cascadeId,
+      generatorMetadataOffset: 0,
+    },
+  );
+  const genList: any[] = Array.isArray(genMetaRes?.generatorMetadata)
+    ? genMetaRes.generatorMetadata
+    : [];
+  for (let i = genList.length - 1; i >= 0; i--) {
+    const item = genList[i];
+    if (!item || typeof item !== 'object') continue;
+    const pc = item.plannerConfig;
+    if (!planModel) {
+      if (isValidModelEnum(pc?.planModel)) {
+        planModel = pc.planModel;
+      } else if (isValidModelEnum(pc?.requestedModel?.model)) {
+        planModel = pc.requestedModel.model;
+      } else if (isValidModelEnum(item.chatModel?.model)) {
+        planModel = item.chatModel.model;
+      }
+    }
+    const policy = pc?.toolConfig?.runCommand?.autoCommandConfig?.autoExecutionPolicy;
+    if (typeof policy === 'string' && policy.trim()) {
+      autoExecutionPolicy = policy.trim();
+    }
+    const reviewMode = pc?.toolConfig?.notifyUser?.artifactReviewMode;
+    if (typeof reviewMode === 'string' && reviewMode.trim()) {
+      artifactReviewMode = reviewMode.trim();
+    }
+    if (typeof pc?.useAiCredits === 'boolean' && useAiCredits === undefined) {
+      useAiCredits = pc.useAiCredits;
+    }
+    if (planModel && pc) {
+      break;
+    }
+  }
+
+  // 2. Fallback to GetUserStatus defaultOverrideModelConfig / recommended clientModelConfigs
+  if (!planModel) {
+    const statusRes = await callLanguageServerRpc(creds, 'GetUserStatus');
+    const modelData = statusRes?.userStatus?.cascadeModelConfigData;
+    const defaultModel = modelData?.defaultOverrideModelConfig?.modelOrAlias?.model;
+    if (isValidModelEnum(defaultModel)) {
+      planModel = defaultModel;
+    } else {
+      const clientConfigs: any[] = Array.isArray(modelData?.clientModelConfigs)
+        ? modelData.clientModelConfigs
+        : [];
+      const firstSortedLabel: string | undefined =
+        modelData?.clientModelSorts?.[0]?.groups?.[0]?.modelLabels?.[0];
+      if (firstSortedLabel) {
+        const matched = clientConfigs.find((c) => c?.label === firstSortedLabel);
+        if (isValidModelEnum(matched?.modelOrAlias?.model)) {
+          planModel = matched.modelOrAlias.model;
+        }
+      }
+      if (!planModel) {
+        for (const c of clientConfigs) {
+          if (isValidModelEnum(c?.modelOrAlias?.model)) {
+            planModel = c.modelOrAlias.model;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Ultimate fallback to Gemini 4 Argon (High)
+  if (!planModel) {
+    planModel = 'MODEL_PLACEHOLDER_M418';
+  }
+
+  return {
+    cascadeConfig: {
+      plannerConfig: {
+        planModel,
+        supportsLatexRendering: true,
+        ...(typeof useAiCredits === 'boolean' ? { useAiCredits } : {}),
+        toolConfig: {
+          runCommand: {
+            autoCommandConfig: {
+              autoExecutionPolicy,
+            },
+          },
+          notifyUser: {
+            artifactReviewMode,
+          },
+        },
+      },
+      conversationHistoryConfig: {
+        enabled: false,
+      },
+      executorConfig: {
+        useCoreDirect: true,
+      },
+    },
+    customAgentSpec: {
+      builtinAgent: {
+        defaultAgent: {
+          isGoogle: false,
+          isInteractive: true,
+          surface: 'AGENT_SURFACE_HUB',
+        },
+      },
+    },
+  };
+}
+
 export async function sendAntigravityUserMessage(
   creds: AntigravityCredentials,
   cascadeId: string,
@@ -387,6 +528,11 @@ export async function sendAntigravityUserMessage(
     return { ok: false, error: `Invalid LanguageServer address: ${creds.address}` };
   }
 
+  const { cascadeConfig, customAgentSpec } = await resolveCascadeConfigForMessage(
+    creds,
+    cascadeId,
+  );
+
   const body = JSON.stringify({
     metadata: {
       ideName: 'antigravity',
@@ -395,6 +541,8 @@ export async function sendAntigravityUserMessage(
     },
     cascadeId,
     items: [{ text }],
+    cascadeConfig,
+    customAgentSpec,
   });
 
   return new Promise((resolve) => {
@@ -411,6 +559,184 @@ export async function sendAntigravityUserMessage(
           'X-Codeium-Csrf-Token': creds.csrfToken,
         },
         timeout: 20000,
+      },
+      (res) => {
+        let buf = '';
+        res.on('data', (c) => (buf += c));
+        res.on('end', () => {
+          if (res.statusCode === 200) {
+            resolve({ ok: true, statusCode: 200 });
+            return;
+          }
+          let errMsg = buf.trim();
+          try {
+            const parsed = JSON.parse(buf);
+            if (parsed?.message) errMsg = String(parsed.message);
+            else if (parsed?.error) errMsg = String(parsed.error);
+          } catch {}
+          resolve({
+            ok: false,
+            statusCode: res.statusCode,
+            error: errMsg || `HTTP ${res.statusCode}`,
+          });
+        });
+      },
+    );
+    req.on('error', (err) => {
+      resolve({ ok: false, error: err.message || 'connection error' });
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ ok: false, error: 'timeout' });
+    });
+    req.write(body);
+    req.end();
+  });
+}
+
+export interface AntigravityActiveAskQuestionStep {
+  trajectoryId: string;
+  stepIndex: number;
+  title: string;
+  rawQuestions: AntigravityRawQuestion[];
+}
+
+export async function getAntigravityPendingAskQuestionStep(
+  creds: AntigravityCredentials,
+  cascadeId: string,
+  stepOffsetHint = 0,
+): Promise<
+  | { status: 'waiting'; step: AntigravityActiveAskQuestionStep }
+  | { status: 'completed' }
+  | { status: 'none' }
+  | { status: 'unreachable' }
+> {
+  const offset = Math.max(0, stepOffsetHint - 1);
+  const res = await callLanguageServerRpc(creds, 'GetCascadeTrajectorySteps', {
+    cascadeId,
+    stepOffset: offset,
+  });
+  if (!res) {
+    return { status: 'unreachable' };
+  }
+  const steps: any[] = Array.isArray(res.steps) ? res.steps : [];
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const step = steps[i];
+    if (!step || step.type !== 'CORTEX_STEP_TYPE_ASK_QUESTION') continue;
+    if (step.status !== 'CORTEX_STEP_STATUS_WAITING') {
+      return { status: 'completed' };
+    }
+    const info = step.metadata?.sourceTrajectoryStepInfo;
+    const trajectoryId = typeof info?.trajectoryId === 'string' ? info.trajectoryId : '';
+    const stepIndex =
+      typeof info?.stepIndex === 'number' && Number.isInteger(info.stepIndex)
+        ? info.stepIndex
+        : offset + i;
+    const title =
+      (typeof step.metadata?.toolSummary === 'string' && step.metadata.toolSummary.trim()) ||
+      (typeof step.metadata?.toolAction === 'string' && step.metadata.toolAction.trim()) ||
+      'AI 需要你的回答';
+
+    const qList: any[] = Array.isArray(step.requestedInteraction?.askQuestion?.questions)
+      ? step.requestedInteraction.askQuestion.questions
+      : [];
+    const rawQuestions: AntigravityRawQuestion[] = [];
+    for (const q of qList) {
+      if (!q || typeof q !== 'object') continue;
+      const question = typeof q.question === 'string' ? q.question.trim() : '';
+      if (!question) continue;
+      const isMultiSelect = Boolean(q.isMultiSelect ?? q.is_multi_select ?? q.multiple);
+      const optsRaw = Array.isArray(q.options) ? q.options : [];
+      const options: Array<{ id: string; text: string }> = [];
+      for (let idx = 0; idx < optsRaw.length; idx++) {
+        const o = optsRaw[idx];
+        if (typeof o === 'string' && o.trim()) {
+          options.push({ id: String(idx + 1), text: o.trim() });
+        } else if (o && typeof o === 'object') {
+          const text = String(o.text ?? o.label ?? '').trim();
+          if (text) {
+            options.push({ id: String(o.id ?? idx + 1), text });
+          }
+        }
+      }
+      rawQuestions.push({
+        question,
+        isMultiSelect,
+        options,
+      });
+    }
+    if (rawQuestions.length === 0) {
+      return { status: 'none' };
+    }
+    return {
+      status: 'waiting',
+      step: {
+        trajectoryId,
+        stepIndex,
+        title,
+        rawQuestions,
+      },
+    };
+  }
+  return { status: 'none' };
+}
+
+export interface AntigravityAskQuestionSubmission {
+  trajectoryId: string;
+  stepIndex: number;
+  responses: Array<{
+    question: string;
+    options: Array<{ id: string; text: string }>;
+    isMultiSelect: boolean;
+    selectedOptionIds?: string[];
+    writeInResponse?: string;
+    skipped?: boolean;
+  }>;
+  cancelled?: boolean;
+}
+
+export async function submitAntigravityAskQuestion(
+  creds: AntigravityCredentials,
+  cascadeId: string,
+  submission: AntigravityAskQuestionSubmission,
+): Promise<{ ok: boolean; error?: string; statusCode?: number }> {
+  const [host, portStr] = creds.address.split(':');
+  const port = Number(portStr);
+  if (!host || !port) {
+    return { ok: false, error: `Invalid LanguageServer address: ${creds.address}` };
+  }
+
+  const body = JSON.stringify({
+    metadata: {
+      ideName: 'antigravity',
+      extensionName: 'antigravity',
+      locale: 'en',
+    },
+    cascadeId,
+    interaction: {
+      ...(submission.trajectoryId ? { trajectoryId: submission.trajectoryId } : {}),
+      stepIndex: submission.stepIndex,
+      askQuestion: {
+        responses: submission.responses,
+        cancelled: Boolean(submission.cancelled),
+      },
+    },
+  });
+
+  return new Promise((resolve) => {
+    const req = http.request(
+      {
+        hostname: host === 'localhost' ? '127.0.0.1' : host,
+        port,
+        path: '/exa.language_server_pb.LanguageServerService/HandleCascadeUserInteraction',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          'Connect-Protocol-Version': '1',
+          'X-Codeium-Csrf-Token': creds.csrfToken,
+        },
+        timeout: 15000,
       },
       (res) => {
         let buf = '';

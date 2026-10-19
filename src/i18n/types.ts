@@ -32,6 +32,8 @@ export interface Translations {
     dashboard: string;
     soundOn: string;
     soundOff: string;
+    pushOn: string;
+    pushOff: string;
     remoteControl: string;
     remoteControlTooltip: string;
   };
@@ -111,6 +113,17 @@ export interface Translations {
       notice: string;
     };
     generatingReply: (provider: string) => string;
+    ageJustNow: string;
+    ageSecondsAgo: (sec: number) => string;
+    ageMinutesAgo: (min: number) => string;
+    ageHoursAgo: (hour: number) => string;
+    ageDaysAgo: (day: number) => string;
+    freshnessActiveTooltip: (age: string | number, time: string) => string;
+    freshnessQuietTooltip: (age: string | number, time: string) => string;
+    freshnessLaggingTooltip: (age: string | number, time: string) => string;
+    freshnessStaleTooltip: (age: string | number, time: string) => string;
+    freshnessInactiveTooltip: (time: string | number) => string;
+    staleNotice: string;
   };
   interaction: {
     heading: string;
@@ -135,6 +148,18 @@ export interface Translations {
     options: string;
     multipleAllowed: string;
     submitAnswer: string;
+    askingQuestions: (count: number) => string;
+    waitingForUserInput: string;
+    questionStepOf: (current: number, total: number) => string;
+    prevQuestion: string;
+    nextQuestion: string;
+    otherWriteInOption: string;
+    otherWriteInPlaceholder: string;
+    cancelQuestion: string;
+    skipQuestion: string;
+    continueQuestion: string;
+    answeredSummary: (text: string) => string;
+    questionSkipped: string;
     composerLabel: string;
     composerAria: string;
     composerPlaceholder: string;

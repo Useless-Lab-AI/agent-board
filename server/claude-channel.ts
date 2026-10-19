@@ -60,6 +60,7 @@ mcp.setNotificationHandler(z.object({ method: z.literal('notifications/claude/ch
   if (detail.length > 16000 || params.tool_name.length > 200) { append('审批内容过长，请在原客户端查看完整内容并处理。'); return; }
   pending.set(params.request_id, { id: params.request_id, kind: 'approval', title: params.tool_name,
     detail, expires: Date.now() + 5 * 60_000 });
+  void publish();
 });
 mcp.oninitialized = () => { initialized = true; };
 
@@ -98,6 +99,7 @@ const http = createServer(async (req, res) => {
         if (typeof body.id !== 'string' || !pending.has(body.id)) throw new HttpError(409, 'Permission expired or already relayed');
         if (body.decision !== 'allow' && body.decision !== 'deny') throw new HttpError(400, 'Invalid decision');
         pending.delete(body.id);
+        void publish();
         await mcp.notification({ method: 'notifications/claude/channel/permission', params: { request_id: body.id, behavior: body.decision } });
         append('审批答复已转交原客户端；若原客户端已处理，此答复会被忽略。');
       } else throw new HttpError(404, 'Unknown channel operation');
@@ -117,9 +119,11 @@ async function publish() {
     if (!initialized) return;
     const sessionId = await identity();
     boundSession = sessionId;
+    for (const [id, request] of pending) if (request.expires < Date.now()) pending.delete(id);
+    const pendingSummary = [...pending.values()].map(({ id, kind, title }) => ({ id, kind, title }));
     descriptor = path.join(directory, `${process.pid}.json`);
     const staging = descriptor + '.writing';
-    await writeFile(staging, JSON.stringify({ pid: process.pid, parentPid: process.ppid, sessionId, port, token, epoch }), { mode: 0o600 });
+    await writeFile(staging, JSON.stringify({ pid: process.pid, parentPid: process.ppid, sessionId, port, token, epoch, pending: pendingSummary }), { mode: 0o600 });
     await rename(staging, descriptor);
   } catch {
     if (descriptor) await unlink(descriptor).catch(() => {});

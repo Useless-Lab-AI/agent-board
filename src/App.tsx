@@ -9,6 +9,13 @@ import { PwaInstallModal } from './PwaInstallModal.js';
 import { ThemeSwitcher } from './ThemeSwitcher.js';
 import { I18nProvider, LanguageSwitcher, useI18n } from './i18n/index.js';
 import { isSoundEnabled, setSoundEnabled, playSound } from './sound.js';
+import {
+  isPushEnabled,
+  enablePushNotifications,
+  disablePushNotifications,
+  syncPushSubscriptionIfEnabled,
+  triggerClientWaitingNotification,
+} from './push.js';
 import styles from './Board.module.css';
 
 function isRunningStandalonePwa(): boolean {
@@ -25,7 +32,7 @@ function isRunningStandalonePwa(): boolean {
 }
 
 function BoardApp() {
-  const { t, tr } = useI18n();
+  const { t, tr, locale } = useI18n();
   const [sessions, setSessions] = useState<SessionView[]>([]);
   const [sources, setSources] = useState<SessionList['sources']>([]);
   const [provider, setProvider] = useState('');
@@ -45,6 +52,7 @@ function BoardApp() {
   const firstLoad = useRef(true);
   const [hasPendingReorder, setHasPendingReorder] = useState(false);
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
+  const [pushOn, setPushOn] = useState(() => isPushEnabled());
   const prevWaiting = useRef(new Set<string>());
 
   const [newModalOpen, setNewModalOpen] = useState(false);
@@ -59,7 +67,6 @@ function BoardApp() {
   });
   const autoExpandRef = useRef<string | null>(autoExpandId);
   autoExpandRef.current = autoExpandId;
-  const [lastActiveCwd, setLastActiveCwd] = useState<string>('');
   const [remoteModalOpen, setRemoteModalOpen] = useState(false);
   const [remoteTargetSession, setRemoteTargetSession] = useState<SessionView | null>(null);
   const [pwaModalOpen, setPwaModalOpen] = useState(false);
@@ -309,6 +316,10 @@ function BoardApp() {
     if (next) playSound('click');
   };
 
+  useEffect(() => {
+    void syncPushSubscriptionIfEnabled(locale);
+  }, [locale]);
+
   const refresh = useCallback(
     async ({ manual = false }: { manual?: boolean } = {}) => {
       if (!manual && inFlightManual.current) return;
@@ -376,21 +387,29 @@ function BoardApp() {
           });
         }
 
-        // Play alert tone if a new session needs approval or user input
-        const waitingIds = new Set(
-          rows
-            .filter(
-              (s) =>
-                s.execution === 'WAITING_APPROVAL' ||
-                s.execution === 'WAITING_INPUT',
-            )
-            .map((s) => s.id),
+        // Play alert tone and trigger notification if a new session needs approval or user input
+        const waitingSessions = rows.filter(
+          (s) =>
+            !s.archived &&
+            (s.execution === 'WAITING_APPROVAL' || s.execution === 'WAITING_INPUT'),
         );
+        const waitingIds = new Set(waitingSessions.map((s) => s.id));
         if (!firstLoad.current) {
-          for (const id of waitingIds) {
-            if (!prevWaiting.current.has(id)) {
-              playSound('alert');
-              break;
+          let playedAlert = false;
+          for (const ws of waitingSessions) {
+            if (!prevWaiting.current.has(ws.id)) {
+              if (!playedAlert) {
+                playSound('alert');
+                playedAlert = true;
+              }
+              const isApproval = ws.execution === 'WAITING_APPROVAL';
+              const notifTitle = `${isApproval ? '⚠️' : '💬'} ${t.states[ws.execution]} · ${ws.title}`;
+              const notifBody = tr(ws.stateReason);
+              triggerClientWaitingNotification(ws, notifTitle, notifBody, (targetId) => {
+                autoExpandRef.current = targetId;
+                setAutoExpandId(targetId);
+                void refresh({ manual: true });
+              });
             }
           }
         }
@@ -402,8 +421,28 @@ function BoardApp() {
         if (call === serial.current) setLoading(false);
       }
     },
-    [archive, provider, filter],
+    [archive, provider, filter, t.states, tr],
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+    const handleMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (data && data.type === 'agent-board:open-session' && typeof data.sessionId === 'string') {
+        const targetId = data.sessionId;
+        autoExpandRef.current = targetId;
+        setAutoExpandId(targetId);
+        try {
+          const u = new URL(window.location.href);
+          u.searchParams.set('session', targetId);
+          window.history.replaceState({ agentBoardSession: targetId }, '', u.toString());
+        } catch {}
+        void refresh({ manual: true });
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, [refresh]);
 
   const loadMore = async () => {
     if (loadingMore) return;
@@ -573,6 +612,53 @@ function BoardApp() {
     setPwaModalOpen(true);
   };
 
+  const togglePush = async () => {
+    if (pushOn) {
+      playSound('click');
+      setPushOn(false);
+      await disablePushNotifications();
+      return;
+    }
+    playSound('click');
+    const res = await enablePushNotifications(locale);
+    if (res.ok) {
+      setPushOn(true);
+      playSound('approve');
+      if (res.mode === 'web-push') {
+        void request('/api/push/test', { lang: locale }).catch(() => {});
+      }
+      return;
+    }
+    if (res.reason === 'ios-pwa-required') {
+      setPwaInstallError(
+        locale === 'en-US'
+          ? 'iOS requires installing Agent Board to your Home Screen first to enable lock-screen push notifications.'
+          : locale === 'ja-JP'
+            ? 'iOSでプッシュ通知を受け取るには、まずホーム画面にアプリを追加してください。'
+            : locale === 'zh-TW'
+              ? 'iOS 系統要求先將 Agent Board 添加到主畫面（桌面應用），才能開啟鎖屏推送通知。'
+              : 'iOS 系统要求先将 Agent Board 添加到手机桌面应用，才能开启锁屏推送通知。',
+      );
+      setPwaModalOpen(true);
+      return;
+    }
+    if (res.reason === 'insecure-context') {
+      await handleStartHttpsInstall();
+      return;
+    }
+    if (res.reason === 'denied') {
+      setError(
+        locale === 'en-US'
+          ? 'Notification permission was denied by the browser. Please allow notifications in site settings.'
+          : locale === 'ja-JP'
+            ? 'ブラウザで通知権限が拒否されました。サイト設定で通知を許可してください。'
+            : locale === 'zh-TW'
+              ? '瀏覽器已拒絕通知權限，請在瀏覽器網站設定中允許通知。'
+              : '浏览器已拒绝通知权限，请在浏览器网站设置中允许通知。',
+      );
+    }
+  };
+
   return (
     <main className={styles.app}>
       <header className={styles.topbar}>
@@ -625,6 +711,16 @@ function BoardApp() {
           >
             <span aria-hidden="true">📱</span>
             <span>{t.topbar.remoteControl}</span>
+          </button>
+          <button
+            type="button"
+            className={styles.soundToggle}
+            data-active={pushOn}
+            onClick={() => void togglePush()}
+            title={pushOn ? t.topbar.pushOn : t.topbar.pushOff}
+            aria-label={pushOn ? t.topbar.pushOn : t.topbar.pushOff}
+          >
+            {pushOn ? '🔔' : '🔕'}
           </button>
           <button
             className={styles.soundToggle}
@@ -921,9 +1017,6 @@ function BoardApp() {
               setRemoteModalOpen(true);
             }}
             onExpandChange={(expanded) => {
-              if (expanded && session.cwd) {
-                setLastActiveCwd(session.cwd);
-              }
               if (!expanded && autoExpandId === session.id) {
                 setAutoExpandId(null);
                 try {
@@ -953,11 +1046,6 @@ function BoardApp() {
       <NewSessionModal
         isOpen={newModalOpen}
         initialProvider={newModalProvider}
-        currentSessionCwd={
-          (autoExpandId && sessions.find((s) => s.id === autoExpandId)?.cwd) ||
-          lastActiveCwd ||
-          sessions[0]?.cwd
-        }
         allSessions={sessions}
         onClose={() => setNewModalOpen(false)}
         onSuccess={handleNewSessionSuccess}

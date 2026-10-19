@@ -84,7 +84,8 @@ export class Interactions {
     this.cleanup = setInterval(() => {
       for (const [id, e] of this.entries) {
         if (!e.stale && Date.now() - e.touched > 6000) { e.stale = true; this.notify(id); }
-        if (!e.writing && !e.refreshing && Date.now() - e.touched > 120_000) {
+        const isActiveTurn = e.view.connected && ['RUNNING', 'WAITING_APPROVAL', 'WAITING_INPUT'].includes(e.view.phase);
+        if (!e.writing && !e.refreshing && !isActiveTurn && Date.now() - e.touched > 120_000) {
           this.entries.delete(id); void e.client.close(); this.notify(id);
         }
       }
@@ -93,9 +94,12 @@ export class Interactions {
   }
   activeState(id: string) {
     const e = this.entries.get(id);
-    if (!e?.view.connected || Date.now() - e.touched > 6000) return;
-    if (['RUNNING', 'WAITING_APPROVAL', 'WAITING_INPUT'].includes(e.view.phase))
-      return { state: e.view.phase as 'RUNNING' | 'WAITING_APPROVAL' | 'WAITING_INPUT', reason: e.view.reason };
+    if (!e?.view.connected) return;
+    if (e.view.phase === 'WAITING_APPROVAL' || e.view.phase === 'WAITING_INPUT')
+      return { state: e.view.phase, reason: e.view.reason };
+    if (Date.now() - e.touched > 6000) return;
+    if (e.view.phase === 'RUNNING')
+      return { state: 'RUNNING' as const, reason: e.view.reason };
   }
   private create(session: NativeSession): Entry {
     if (this.closing) throw new HttpError(409, '服务正在关闭');
@@ -230,12 +234,18 @@ export class Interactions {
       if (!request) throw new Error('请求已处理或过期，请查看原客户端');
       if (request.kind === 'approval' && !['allow', 'deny'].includes(String(body.decision))) throw new Error('请选择允许或拒绝');
       if (request.kind === 'question') {
-        const answers = body.answers;
-        if (!answers || typeof answers !== 'object' || Array.isArray(answers) ||
-          Object.keys(answers).length !== request.questions?.length || request.questions?.some(q => {
-            const answer = (answers as Record<string, unknown>)[q.id];
-            return typeof answer !== 'string' || !answer.trim() || answer.length > 16000;
-          })) throw new Error('请完整回答问题');
+        const action = typeof body.action === 'string' ? body.action : 'submit';
+        if (!['submit', 'skip', 'cancel'].includes(action)) {
+          throw new Error('不支持的问题操作类型');
+        }
+        if (action === 'submit') {
+          const answers = body.answers;
+          if (!answers || typeof answers !== 'object' || Array.isArray(answers) ||
+            Object.keys(answers).length !== request.questions?.length || request.questions?.some(q => {
+              const answer = (answers as Record<string, unknown>)[q.id];
+              return typeof answer !== 'string' || !answer.trim() || answer.length > 16000;
+            })) throw new Error('请完整回答问题');
+        }
       }
       if (e.decisions.size >= 256) throw new Error('此连接的审批记录已满，请在原客户端处理');
       e.decisions.add(`${e.view.runtimeEpoch}:${request.id}`);

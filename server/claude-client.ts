@@ -78,6 +78,81 @@ function normalizePendingItems(raw: unknown): InteractionRequest[] {
   return res;
 }
 
+function normalizeWinDrive(p: string): string {
+  return process.platform === 'win32'
+    ? p.replace(/^([A-Z]):/, (_, d: string) => `${d.toLowerCase()}:`)
+    : p;
+}
+
+function parseJsonc(raw: string): any {
+  const withoutBlockComments = raw.replace(/\/\*[\s\S]*?\*\//g, '');
+  const withoutLineComments = withoutBlockComments.replace(/^\s*\/\/.*$/gm, '');
+  const withoutTrailingCommas = withoutLineComments.replace(/,\s*([}\]])/g, '$1');
+  return JSON.parse(withoutTrailingCommas);
+}
+
+async function readCodeWorkspaceFoldersInDir(dir: string): Promise<string[]> {
+  const folders: string[] = [];
+  try {
+    const entries = await readdir(dir);
+    for (const entry of entries.filter((e) => e.endsWith('.code-workspace'))) {
+      try {
+        const raw = await readFile(path.join(dir, entry), 'utf8');
+        const ws = parseJsonc(raw);
+        if (Array.isArray(ws?.folders)) {
+          for (const folder of ws.folders) {
+            if (typeof folder?.path === 'string' && folder.path.trim()) {
+              const candidate = path.resolve(dir, folder.path.trim());
+              if (existsSync(candidate)) {
+                folders.push(normalizeWinDrive(candidate));
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+  return folders;
+}
+
+export async function resolveClaudeWorkspace(
+  rawCwd: string,
+  initialDirs: string[] = [],
+): Promise<{ cwd: string; addDirs: string[] }> {
+  let primaryCwd = normalizeWinDrive(path.resolve(rawCwd));
+  const dirMap = new Map<string, string>();
+  for (const d of initialDirs) {
+    const norm = normalizeWinDrive(path.resolve(d));
+    dirMap.set(norm.toLowerCase(), norm);
+  }
+
+  const localWsFolders = await readCodeWorkspaceFoldersInDir(primaryCwd);
+  if (localWsFolders.length > 0) {
+    if (!existsSync(path.join(primaryCwd, '.git'))) {
+      primaryCwd = localWsFolders[0];
+    }
+    for (const f of localWsFolders) {
+      dirMap.set(f.toLowerCase(), f);
+    }
+  } else {
+    const parentDir = path.dirname(primaryCwd);
+    if (parentDir && parentDir !== primaryCwd) {
+      const parentWsFolders = await readCodeWorkspaceFoldersInDir(parentDir);
+      if (parentWsFolders.some((f) => f.toLowerCase() === primaryCwd.toLowerCase())) {
+        for (const f of parentWsFolders) {
+          dirMap.set(f.toLowerCase(), f);
+        }
+      }
+    }
+  }
+
+  dirMap.delete(primaryCwd.toLowerCase());
+  return {
+    cwd: primaryCwd,
+    addDirs: [...dirMap.values()],
+  };
+}
+
 export class ClaudeClient implements LiveClient {
   private bridgeEndpoint?: BridgeEndpoint;
   private lastBridgePid?: number;
@@ -344,13 +419,21 @@ export class ClaudeClient implements LiveClient {
           try {
             const res = JSON.parse(trimmed);
             if (res.status === 'authenticated') {
+              const isCancel = body.action === 'cancel';
               socket.write(
                 JSON.stringify({
                   type: 'decision',
                   requestId,
-                  decision: typeof body.decision === 'string' ? body.decision : undefined,
+                  decision: isCancel
+                    ? 'deny'
+                    : typeof body.decision === 'string'
+                      ? body.decision
+                      : undefined,
                   answers:
-                    body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers)
+                    !isCancel &&
+                    body.answers &&
+                    typeof body.answers === 'object' &&
+                    !Array.isArray(body.answers)
                       ? body.answers
                       : undefined,
                 }) + '\n',
@@ -496,31 +579,6 @@ public class CleanExit {
     }
     await unlink(path.join(this.home, 'sessions', `${pid}.json`)).catch(() => {});
     return extraDirs;
-  }
-
-  private async resolveWorkspaceAddDirs(cwd: string, initialDirs: string[] = []): Promise<string[]> {
-    const dirSet = new Set<string>(initialDirs.map(d => path.resolve(d)));
-    const resolvedCwd = path.resolve(cwd);
-    try {
-      const entries = await readdir(cwd);
-      for (const entry of entries.filter(e => e.endsWith('.code-workspace'))) {
-        try {
-          const raw = await readFile(path.join(cwd, entry), 'utf8');
-          const ws = JSON.parse(raw);
-          if (Array.isArray(ws?.folders)) {
-            for (const folder of ws.folders) {
-              if (typeof folder?.path === 'string' && folder.path.trim()) {
-                const candidate = path.resolve(cwd, folder.path.trim());
-                if (candidate !== resolvedCwd && existsSync(candidate)) {
-                  dirSet.add(candidate);
-                }
-              }
-            }
-          }
-        } catch {}
-      }
-    } catch {}
-    return [...dirSet];
   }
 
   async refresh(): Promise<LiveState> {
@@ -695,12 +753,19 @@ public class CleanExit {
     const bridgeExe = path.join(this.home, 'agent-board-bridge.exe');
     const wrapperExe = path.join(this.home, 'agent-board-wrapper.exe');
     const exe = existsSync(bridgeExe) ? bridgeExe : existsSync(wrapperExe) ? wrapperExe : 'claude.cmd';
-    const cwd =
+    const rawCwd =
       (this.session.cwd && existsSync(this.session.cwd) ? this.session.cwd : undefined) ||
       process.cwd();
 
-    const addDirs = await this.resolveWorkspaceAddDirs(cwd, legacyAddDirs);
-    const addDirArgs = addDirs.map(dir => `--add-dir=${dir}`);
+    const resolvedWs = await resolveClaudeWorkspace(rawCwd, legacyAddDirs);
+    const resolvedEncoded = resolvedWs.cwd.replace(/[^a-zA-Z0-9-]/g, '-');
+    const resolvedTranscript = path.join(this.home, 'projects', resolvedEncoded, `${this.session.nativeId}.jsonl`);
+    const existingFile = this.session.files[0]?.path;
+    const cwd =
+      existsSync(resolvedTranscript) || !existingFile || !existsSync(existingFile)
+        ? resolvedWs.cwd
+        : rawCwd;
+    const addDirArgs = resolvedWs.addDirs.map(dir => `--add-dir=${dir}`);
 
     const args = [
       '--resume',
@@ -725,6 +790,7 @@ public class CleanExit {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
+        CLAUDE_CODE_ENTRYPOINT: 'claude-vscode',
       },
     });
 

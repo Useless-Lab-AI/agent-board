@@ -4,12 +4,19 @@ import { useI18n, zhCN, type Translations } from './i18n/index.js';
 import { CopyButton } from './CopyButton.js';
 import styles from './Board.module.css';
 
+export interface ParsedQuestionItem {
+  question: string;
+  options: string[];
+  multiple?: boolean;
+}
+
 export interface ParsedToolCall {
   commands: string[];
   otherCalls: { fn: string; argsRaw: string }[];
   parsedJson: Record<string, any> | null;
+  questions: ParsedQuestionItem[];
   summary: string;
-  detailType: 'terminal' | 'file' | 'sleep' | 'message' | 'tool';
+  detailType: 'terminal' | 'file' | 'sleep' | 'message' | 'question' | 'tool';
 }
 
 export function parseToolCall(
@@ -19,6 +26,7 @@ export function parseToolCall(
 ): ParsedToolCall {
   const commands: string[] = [];
   const otherCalls: { fn: string; argsRaw: string }[] = [];
+  const questions: ParsedQuestionItem[] = [];
   let summary = '';
   let detailType: ParsedToolCall['detailType'] = 'tool';
 
@@ -57,11 +65,43 @@ export function parseToolCall(
       if (parsedJson?.command || parsedJson?.cmd || parsedJson?.CommandLine) {
         commands.push(parsedJson.command || parsedJson.cmd || parsedJson.CommandLine);
       }
+      if (Array.isArray(parsedJson?.questions)) {
+        for (const q of parsedJson.questions) {
+          if (!q || typeof q !== 'object') continue;
+          const qText = typeof q.question === 'string' ? q.question.trim() : '';
+          if (!qText) continue;
+          const optsRaw = Array.isArray(q.options) ? q.options : [];
+          const options = optsRaw
+            .map((o: any) =>
+              typeof o === 'string'
+                ? o.trim()
+                : o && typeof o === 'object'
+                  ? String(o.text ?? o.label ?? '').trim()
+                  : '',
+            )
+            .filter(Boolean);
+          questions.push({
+            question: qText,
+            options,
+            multiple: Boolean(q.is_multi_select ?? q.isMultiSelect ?? q. multiSelect ?? q.multiple),
+          });
+        }
+      }
     } catch {}
   }
 
   // Determine summary and detail type
-  if (commands.length > 0) {
+  if (questions.length > 0) {
+    detailType = 'question';
+    if (parsedJson?.toolSummary && typeof parsedJson.toolSummary === 'string') {
+      summary = parsedJson.toolSummary;
+    } else {
+      summary = questions[0].question;
+      if (questions.length > 1) {
+        summary += ` (+${questions.length - 1})`;
+      }
+    }
+  } else if (commands.length > 0) {
     detailType = 'terminal';
     summary = commands[0].replace(/\r?\n/g, ' ').trim();
     if (commands.length > 1) summary += t.tools.moreCommands(commands.length - 1);
@@ -134,7 +174,7 @@ export function parseToolCall(
     summary = text.split('\n')[0].slice(0, 80);
   }
 
-  return { commands, otherCalls, parsedJson, summary, detailType };
+  return { commands, otherCalls, parsedJson, questions, summary, detailType };
 }
 
 export interface ParsedToolResult {
@@ -262,6 +302,19 @@ export function parseToolResult(
     }
   }
 
+  let isQuestionAnswer = false;
+  if (createdMatch && completedMatch && !exitMatch) {
+    const stripped = text
+      .replace(/^Created At:\s*[^\r\n]+\r?\n/i, '')
+      .replace(/^Completed At:\s*[^\r\n]+\r?\n*/i, '')
+      .trim();
+    if (/^(?:A\d+:\s*|Cancelled by user)/i.test(stripped)) {
+      isQuestionAnswer = true;
+      outputs.length = 0;
+      outputs.push(stripped);
+    }
+  }
+
   if (wallTime === null) wallTime = wrapperTime;
 
   const cleanOutput = outputs.join('\n').replace(/\r\n/g, '\n').trim();
@@ -270,7 +323,12 @@ export function parseToolResult(
 
   // Generate summary
   let summary = '';
-  if (isError) {
+  if (isQuestionAnswer && cleanOutput) {
+    const oneLine = cleanOutput.replace(/\s+/g, ' ').trim();
+    summary = t.interaction.answeredSummary(
+      oneLine.length > 72 ? `${oneLine.slice(0, 72)}…` : oneLine,
+    );
+  } else if (isError) {
     summary = t.tools.failedStatus(exitCode ?? 1);
     if (wallTime !== null) summary += t.tools.durationSuffix(wallTime.toFixed(1));
   } else {
@@ -292,28 +350,42 @@ export function parseToolResult(
   };
 }
 
-export function ToolCallView({ event }: { event: DisplayEvent }) {
+export function ToolCallView({
+  event,
+  defaultOpen = false,
+  onQuickInteract,
+}: {
+  event: DisplayEvent;
+  defaultOpen?: boolean;
+  onQuickInteract?: () => void;
+}) {
   const { t, formatTime } = useI18n();
-  const [expanded, setExpanded] = useState(false);
   const label = !event.label || event.label === '工具调用' ? t.tools.callTitle : event.label;
   const parsed = parseToolCall(event.text, label, t);
+  const [expanded, setExpanded] = useState(defaultOpen);
 
   const icon =
-    parsed.detailType === 'terminal'
-      ? '>_'
-      : parsed.detailType === 'file'
-        ? '📄'
-        : parsed.detailType === 'sleep'
-          ? '⏳'
-          : parsed.detailType === 'message'
-            ? '✉'
-            : '⚡';
+    parsed.detailType === 'question'
+      ? '?'
+      : parsed.detailType === 'terminal'
+        ? '>_'
+        : parsed.detailType === 'file'
+          ? '📄'
+          : parsed.detailType === 'sleep'
+            ? '⏳'
+            : parsed.detailType === 'message'
+              ? '✉'
+              : '⚡';
 
   const fullCommand = parsed.commands.join('\n');
   const copyTarget = fullCommand || event.text;
 
   return (
-    <div className={styles.toolBlock} data-expanded={expanded}>
+    <div
+      className={styles.toolBlock}
+      data-expanded={expanded}
+      data-question={parsed.detailType === 'question'}
+    >
       <button
         type="button"
         className={styles.toolHeader}
@@ -322,7 +394,10 @@ export function ToolCallView({ event }: { event: DisplayEvent }) {
         title={expanded ? t.tools.collapseCall : t.tools.expandCall}
       >
         <div className={styles.toolHeaderLeft}>
-          <span className={styles.toolBadge} data-kind="call">
+          <span
+            className={styles.toolBadge}
+            data-kind={parsed.detailType === 'question' ? 'question' : 'call'}
+          >
             <i>{icon}</i>
             <span>{label}</span>
           </span>
@@ -331,11 +406,7 @@ export function ToolCallView({ event }: { event: DisplayEvent }) {
           </span>
         </div>
         <div className={styles.toolHeaderRight}>
-          {event.timestamp && (
-            <time>
-              {formatTime(event.timestamp)}
-            </time>
-          )}
+          {event.timestamp && <time>{formatTime(event.timestamp)}</time>}
           <span className={styles.toolChevron} data-open={expanded}>
             {expanded ? '▾' : '▸'}
           </span>
@@ -344,7 +415,54 @@ export function ToolCallView({ event }: { event: DisplayEvent }) {
 
       {expanded && (
         <div className={styles.toolBody}>
-          {parsed.commands.length > 0 ? (
+          {parsed.questions.length > 0 ? (
+            <div className={styles.toolQuestionList}>
+              {parsed.questions.map((q, qIdx) => (
+                <div key={qIdx} className={styles.toolQuestionItem}>
+                  <div className={styles.toolQuestionHeader}>
+                    <span className={styles.nativeQuestionBadge} aria-hidden="true">
+                      ?
+                    </span>
+                    <span className={styles.toolQuestionTitle}>
+                      {q.question}
+                      {q.multiple && (
+                        <small className={styles.nativeQuestionMultiHint}>
+                          {t.interaction.multipleAllowed}
+                        </small>
+                      )}
+                    </span>
+                    {parsed.questions.length > 1 && (
+                      <span className={styles.nativeQuestionPagerText}>
+                        {t.interaction.questionStepOf(qIdx + 1, parsed.questions.length)}
+                      </span>
+                    )}
+                  </div>
+                  {q.options.length > 0 && (
+                    <div className={styles.toolQuestionOptions}>
+                      {q.options.map((opt, optIdx) =>
+                        onQuickInteract ? (
+                          <button
+                            key={optIdx}
+                            type="button"
+                            className={styles.nativeQuestionOptionRow}
+                            onClick={onQuickInteract}
+                          >
+                            <span className={styles.nativeQuestionOptNum}>{optIdx + 1}</span>
+                            <span className={styles.nativeQuestionOptText}>{opt}</span>
+                          </button>
+                        ) : (
+                          <div key={optIdx} className={styles.toolQuestionOptionStatic}>
+                            <span className={styles.nativeQuestionOptNum}>{optIdx + 1}</span>
+                            <span className={styles.nativeQuestionOptText}>{opt}</span>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : parsed.commands.length > 0 ? (
             <div className={styles.toolTerminal}>
               <div className={styles.toolTerminalBar}>
                 <span>{t.tools.commandsCount(parsed.commands.length)}</span>
@@ -508,7 +626,15 @@ export function ToolResultView({ event }: { event: DisplayEvent }) {
   );
 }
 
-export function ToolEventView({ event }: { event: DisplayEvent }) {
+export function ToolEventView({
+  event,
+  defaultOpen = false,
+  onQuickInteract,
+}: {
+  event: DisplayEvent;
+  defaultOpen?: boolean;
+  onQuickInteract?: () => void;
+}) {
   const { t } = useI18n();
   const isResult =
     event.label === '工具结果' ||
@@ -518,5 +644,11 @@ export function ToolEventView({ event }: { event: DisplayEvent }) {
   if (isResult) {
     return <ToolResultView event={event} />;
   }
-  return <ToolCallView event={event} />;
+  return (
+    <ToolCallView
+      event={event}
+      defaultOpen={defaultOpen}
+      onQuickInteract={onQuickInteract}
+    />
+  );
 }

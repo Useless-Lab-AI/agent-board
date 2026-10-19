@@ -176,6 +176,11 @@ const EXACT_MAP: Record<string, { 'zh-TW': string; 'en-US': string; 'ja-JP': str
     'en-US': 'Antigravity agent is starting execution',
     'ja-JP': 'Antigravity エージェントが起動・実行中です',
   },
+  'Antigravity 智能体正在等待你回答问题；可直接在此选择选项并提交，或在原客户端处理': {
+    'zh-TW': 'Antigravity 智能體正在等待你回答問題；可直接在此選擇選項並提交，或在原用戶端處理',
+    'en-US': 'Antigravity agent is waiting for your answer; select an option and submit here, or handle it in the original client',
+    'ja-JP': 'Antigravity エージェントが回答を待っています。ここで選択肢を選んで送信するか、元のクライアントで処理してください',
+  },
 
   // General / Readers
   '正在连接原客户端': {

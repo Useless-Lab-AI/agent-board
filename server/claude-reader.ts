@@ -222,5 +222,35 @@ export async function claudeStatuses(
     }
   } catch {}
 
+  // Check MCP channels for live pending approval requests
+  const channelsRoot = path.join(home, 'agent-board-channels');
+  try {
+    const channelNames = await readdir(channelsRoot);
+    for (const name of channelNames.filter((n) => /^\d+\.json$/.test(n))) {
+      try {
+        const file = await contained(channelsRoot, path.join(channelsRoot, name));
+        if ((await stat(file)).size > 262144) continue;
+        const ch = JSON.parse(await readFile(file, 'utf8'));
+        if (!Number.isInteger(ch.pid) || ch.pid <= 0) continue;
+        process.kill(ch.pid, 0);
+        if (Number.isInteger(ch.parentPid) && ch.parentPid > 0) {
+          process.kill(ch.parentPid, 0);
+        }
+        const sessionId = typeof ch.sessionId === 'string' ? ch.sessionId : '';
+        if (!sessionId) continue;
+        if (Array.isArray(ch.pending) && ch.pending.length > 0) {
+          const firstTitle =
+            typeof ch.pending[0]?.title === 'string' && ch.pending[0].title
+              ? ch.pending[0].title
+              : '允许执行命令？';
+          result.set(sessionId, {
+            state: 'WAITING_APPROVAL',
+            reason: firstTitle,
+          });
+        }
+      } catch {}
+    }
+  } catch {}
+
   return result;
 }

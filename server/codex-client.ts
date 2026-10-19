@@ -440,8 +440,9 @@ export class CodexClient implements LiveClient {
     if (!r) throw new Error('请求已在原客户端处理或已过期');
     const method = r.method === 'item/commandExecution/requestApproval' ? 'thread-follower-command-approval-decision'
       : r.method === 'item/fileChange/requestApproval' ? 'thread-follower-file-approval-decision' : 'thread-follower-submit-user-input';
+    const rawAnswers = (body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers) ? body.answers : {}) as Record<string, string>;
     const value = method.endsWith('submit-user-input')
-      ? { response: { answers: Object.fromEntries(Object.entries(body.answers as Record<string, string>).map(([key, answer]) => [key, { answers: [answer] }])) } }
+      ? { response: { answers: Object.fromEntries(Object.entries(rawAnswers).map(([key, answer]) => [key, { answers: [answer] }])) } }
       : { decision: body.decision === 'allow' ? 'accept' : 'decline' };
     await this.request(method, 1, { conversationId: this.session.nativeId, requestId: r.id, ...value });
   }

@@ -187,6 +187,127 @@ export function getAntigravityTranscriptStatus(
   }
 }
 
+export interface AntigravityRawQuestion {
+  question: string;
+  isMultiSelect: boolean;
+  options: Array<{ id: string; text: string }>;
+}
+
+export interface AntigravityPendingAskQuestion {
+  transcriptStepIndex: number;
+  title: string;
+  rawQuestions: AntigravityRawQuestion[];
+}
+
+function readTailLastRecord(filePath: string): any | null {
+  try {
+    const st = statSync(filePath);
+    if (!st.size) return null;
+    const fd = openSync(filePath, 'r');
+    try {
+      const readLen = Math.min(st.size, 131072);
+      const buffer = Buffer.alloc(readLen);
+      readSync(fd, buffer, 0, readLen, st.size - readLen);
+      const text = buffer.toString('utf8');
+      const lines = text
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const parsed = JSON.parse(lines[i]);
+          if (!parsed || typeof parsed !== 'object') continue;
+          const type = parsed.type;
+          if (type === 'CHECKPOINT' || type === 'EPHEMERAL_MESSAGE') {
+            continue;
+          }
+          return parsed;
+        } catch {}
+      }
+      return null;
+    } finally {
+      closeSync(fd);
+    }
+  } catch {
+    return null;
+  }
+}
+
+export function getAntigravityPendingAskQuestion(
+  transcriptPath: string,
+): AntigravityPendingAskQuestion | null {
+  let obj = readTailLastRecord(transcriptPath);
+  if (!obj || obj.type !== 'PLANNER_RESPONSE') return null;
+
+  if (
+    Array.isArray(obj.truncated_fields) &&
+    obj.truncated_fields.includes('tool_calls')
+  ) {
+    const fullPath = path.join(path.dirname(transcriptPath), 'transcript_full.jsonl');
+    const fullObj = readTailLastRecord(fullPath);
+    if (fullObj && fullObj.type === 'PLANNER_RESPONSE') {
+      obj = fullObj;
+    }
+  }
+
+  const tools = Array.isArray(obj.tool_calls) ? obj.tool_calls : [];
+  const askCall = tools.find((t: any) => t && t.name === 'ask_question');
+  if (!askCall) return null;
+
+  let args = askCall.args;
+  if (typeof args === 'string') {
+    try {
+      args = JSON.parse(args);
+    } catch {}
+  }
+  if (!args || typeof args !== 'object') args = {};
+
+  const rawList = Array.isArray(args.questions) ? args.questions : [];
+  const rawQuestions: AntigravityRawQuestion[] = [];
+  for (const q of rawList) {
+    if (!q || typeof q !== 'object') continue;
+    const questionText = typeof q.question === 'string' ? q.question.trim() : '';
+    if (!questionText) continue;
+    const isMultiSelect = Boolean(q.is_multi_select ?? q.isMultiSelect ?? q.multiple);
+    const optsRaw = Array.isArray(q.options) ? q.options : [];
+    const options: Array<{ id: string; text: string }> = [];
+    for (let i = 0; i < optsRaw.length; i++) {
+      const item = optsRaw[i];
+      if (typeof item === 'string' && item.trim()) {
+        options.push({ id: String(i + 1), text: item.trim() });
+      } else if (item && typeof item === 'object') {
+        const text = String(item.text ?? item.label ?? '').trim();
+        if (text) {
+          options.push({ id: String(item.id ?? i + 1), text });
+        }
+      }
+    }
+    rawQuestions.push({
+      question: questionText,
+      isMultiSelect,
+      options,
+    });
+  }
+
+  if (rawQuestions.length === 0) return null;
+
+  const title =
+    (typeof args.toolSummary === 'string' && args.toolSummary.trim()) ||
+    (typeof args.toolAction === 'string' && args.toolAction.trim()) ||
+    'AI 需要你的回答';
+
+  const transcriptStepIndex =
+    typeof obj.step_index === 'number' && Number.isInteger(obj.step_index)
+      ? obj.step_index
+      : 0;
+
+  return {
+    transcriptStepIndex,
+    title,
+    rawQuestions,
+  };
+}
+
 export function getAntigravityExecution(
   summary?: AntigravitySummary,
   transcriptPath?: string,
@@ -201,7 +322,7 @@ export function getAntigravityExecution(
     const realTime = getAntigravityTranscriptStatus(transcriptPath);
     if (realTime) {
       if (
-        realTime.state === 'RUNNING' &&
+        (realTime.state === 'RUNNING' || realTime.state === 'WAITING_INPUT') &&
         summary &&
         !summary.notFullyIdle &&
         summary.status === 'CASCADE_RUN_STATUS_IDLE'
@@ -219,6 +340,9 @@ export function getAntigravityExecution(
 
   if (!summary) {
     return { state: 'UNKNOWN', reason: 'Antigravity 会话元信息尚未确认' };
+  }
+  if (summary.status === 'CASCADE_RUN_STATUS_WAITING_FOR_USER') {
+    return { state: 'WAITING_INPUT', reason: '智能体正在等待用户回答问题' };
   }
   if (summary.notFullyIdle || summary.status === 'CASCADE_RUN_STATUS_RUNNING') {
     return { state: 'RUNNING', reason: 'Antigravity 会话正在执行中' };

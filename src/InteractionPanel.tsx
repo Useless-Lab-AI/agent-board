@@ -5,6 +5,7 @@ import { useI18n } from './i18n/index.js';
 import { playSound } from './sound.js';
 import { CopyButton } from './CopyButton.js';
 import { ChatComposer, type AttachedFileItem } from './ChatComposer.js';
+import { InteractiveQuestionCard } from './QuestionCard.js';
 import styles from './Board.module.css';
 
 function SetupSnippet({ text }: { text: string }) {
@@ -80,9 +81,6 @@ export function InteractionPanel({
   const [posting, setPosting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [attachments, setAttachments] = useState<AttachedFileItem[]>([]);
-  const [answers, setAnswers] = useState<
-    Record<string, Record<string, string>>
-  >({});
   const output = useRef<HTMLPreElement>(null),
     follow = useRef(true);
   const current = useRef(view);
@@ -284,13 +282,22 @@ export function InteractionPanel({
         </details>
       )}
       <div className={styles.requests}>
-        {view?.pending.map((p) => (
-          <div key={p.id} className={styles.permission}>
-            <div className={styles.permissionHeader}>
-              <span>⚡ {tr(p.title)}</span>
-            </div>
-            {p.detail && <DiffDetailView detail={p.detail} />}
-            {p.kind === 'approval' ? (
+        {view?.pending.map((p) =>
+          p.kind === 'question' ? (
+            <InteractiveQuestionCard
+              key={p.id}
+              request={p}
+              disabled={posting || !isOnline}
+              onSubmit={(payload) =>
+                void post('decision', payload as unknown as Record<string, unknown>)
+              }
+            />
+          ) : (
+            <div key={p.id} className={styles.permission}>
+              <div className={styles.permissionHeader}>
+                <span>⚡ {tr(p.title)}</span>
+              </div>
+              {p.detail && <DiffDetailView detail={p.detail} />}
               <div className={styles.interactionActions}>
                 <button
                   className={styles.denyButton}
@@ -319,93 +326,19 @@ export function InteractionPanel({
                   ✓ {t.interaction.allow}
                 </button>
               </div>
-            ) : (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void post('decision', {
-                    providerRequestId: p.id,
-                    answers: answers[p.id] ?? {},
-                  });
-                }}
-              >
-                {p.questions?.map((q) => (
-                  <label key={q.id}>
-                    {q.text}
-                    {q.options.length > 0 && (
-                      <>
-                        <small>
-                          {t.interaction.options}{q.options.join(' / ')}
-                          {q.multiple ? t.interaction.multipleAllowed : ''}
-                        </small>
-                        <div className={styles.questionOptionPills}>
-                          {q.options.map((opt) => {
-                            const curVal = answers[p.id]?.[q.id] ?? '';
-                            const isSelected = q.multiple
-                              ? curVal.split(',').map((s) => s.trim()).includes(opt)
-                              : curVal === opt;
-                            return (
-                              <button
-                                key={opt}
-                                type="button"
-                                className={
-                                  isSelected
-                                    ? styles.questionOptionPillActive
-                                    : styles.questionOptionPill
-                                }
-                                onClick={() => {
-                                  setAnswers((a) => {
-                                    const prev = a[p.id]?.[q.id] ?? '';
-                                    let next = opt;
-                                    if (q.multiple && prev) {
-                                      const parts = prev
-                                        .split(',')
-                                        .map((s) => s.trim())
-                                        .filter(Boolean);
-                                      if (parts.includes(opt)) {
-                                        next = parts.filter((x) => x !== opt).join(', ');
-                                      } else {
-                                        next = [...parts, opt].join(', ');
-                                      }
-                                    }
-                                    return {
-                                      ...a,
-                                      [p.id]: { ...a[p.id], [q.id]: next },
-                                    };
-                                  });
-                                }}
-                              >
-                                {opt}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </>
-                    )}
-                    <input
-                      required
-                      value={answers[p.id]?.[q.id] ?? ''}
-                      onChange={(e) =>
-                        setAnswers((a) => ({
-                          ...a,
-                          [p.id]: { ...a[p.id], [q.id]: e.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                ))}
-                <button disabled={posting || !isOnline}>{t.interaction.submitAnswer}</button>
-              </form>
-            )}
-          </div>
-        ))}
+            </div>
+          ),
+        )}
       </div>
       {error && (
         <p role="alert" className={styles.interactionError}>
           {error}
         </p>
       )}
-      {view?.available && view.phase !== 'OBSERVE_ONLY' && (() => {
+      {view?.available &&
+        view.phase !== 'OBSERVE_ONLY' &&
+        !view.pending.some((p) => p.kind === 'question') &&
+        (() => {
         const submitSend = () => {
           if (!canSend) return;
           const textToSend = draft;

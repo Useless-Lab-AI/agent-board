@@ -16,6 +16,7 @@ import { CopyButton } from './CopyButton.js';
 import { useI18n } from './i18n/index.js';
 import { playSound } from './sound.js';
 import { AgentLogo } from './AgentLogo.js';
+import { TaskAgeBadge, getFreshnessInfo } from './TaskAgeBadge.js';
 import {
   getPathBasename,
   isNonProjectPath,
@@ -75,34 +76,25 @@ function extractPreviewSnippet(
   return { roleIcon: '', text: fallbackReason };
 }
 
-function formatShortTime(updatedAt: number, locale: string): string {
-  if (!updatedAt || updatedAt <= 0) return '';
-  const diffSec = Math.floor((Date.now() - updatedAt) / 1000);
-  const isEn = locale === 'en-US';
-  if (diffSec < 60) return isEn ? 'now' : '刚刚';
-  if (diffSec < 3600) {
-    const mins = Math.floor(diffSec / 60);
-    return isEn ? `${mins}m` : `${mins}分钟前`;
-  }
-  const d = new Date(updatedAt);
-  const now = new Date();
-  if (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  ) {
-    return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false });
-  }
-  return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function EventContent({ event }: { event: DisplayEvent }) {
+function EventContent({
+  event,
+  defaultOpenTool = false,
+  onQuickInteract,
+}: {
+  event: DisplayEvent;
+  defaultOpenTool?: boolean;
+  onQuickInteract?: () => void;
+}) {
   const { t, tr, formatTime } = useI18n();
 
   if (event.role === 'tool') {
     return (
       <div className={styles.event} data-role={event.role} data-event-id={event.id}>
-        <ToolEventView event={event} />
+        <ToolEventView
+          event={event}
+          defaultOpen={defaultOpenTool}
+          onQuickInteract={onQuickInteract}
+        />
       </div>
     );
   }
@@ -610,7 +602,7 @@ export function SessionCard({
 
   const activity = session.execution === 'UNKNOWN' ? session.activity : undefined;
   const previewInfo = extractPreviewSnippet(page?.items, sessionReason);
-  const updatedTimeStr = formatShortTime(session.updatedAt, locale);
+  const freshness = getFreshnessInfo(session.updatedAt, session.execution, activity?.label);
   const badges = (
     <div className={styles.badges}>
       <span
@@ -631,6 +623,11 @@ export function SessionCard({
           ? (activity.label === '近期有输出' ? t.card.recentOutput : t.card.noRecentUpdate)
           : executionLabel[session.execution]}
       </span>
+      <TaskAgeBadge
+        updatedAt={session.updatedAt}
+        execution={session.execution}
+        activityLabel={activity?.label}
+      />
       {newlyDiscovered && <span className={styles.attention}>{t.states.newDiscovered}</span>}
       <span className={styles.attention} data-state={session.attention}>
         {attentionLabel[session.attention]}
@@ -708,16 +705,35 @@ export function SessionCard({
           {page && !displayItems.length && (
             <p className={styles.loading}>{t.card.noDisplayableRecords}</p>
           )}
-          {displayItems.map((event, index) => (
-            <div key={event.id}>
-              {session.segments > 1 &&
-                event.segment !== displayItems[index - 1]?.segment &&
-                event.segment && (
-                  <p className={styles.segment}>{t.card.nativeSegment(event.segment)}</p>
-                )}
-              <EventContent event={event} />
-            </div>
-          ))}
+          {displayItems.map((event, index) => {
+            const isLast = index === displayItems.length - 1;
+            const isPendingQuestionOnCard =
+              !isModal &&
+              isLast &&
+              session.execution === 'WAITING_INPUT' &&
+              event.role === 'tool';
+            return (
+              <div key={event.id}>
+                {session.segments > 1 &&
+                  event.segment !== displayItems[index - 1]?.segment &&
+                  event.segment && (
+                    <p className={styles.segment}>{t.card.nativeSegment(event.segment)}</p>
+                  )}
+                <EventContent
+                  event={event}
+                  defaultOpenTool={isPendingQuestionOnCard}
+                  onQuickInteract={
+                    isPendingQuestionOnCard
+                      ? () => {
+                          playSound('click');
+                          toggleExpand(true);
+                        }
+                      : undefined
+                  }
+                />
+              </div>
+            );
+          })}
           {showTyping && (
             <div
               className={`${styles.event} ${styles.typingEvent}`}
@@ -743,16 +759,25 @@ export function SessionCard({
     );
   };
 
+  const isStaleWorker =
+    freshness.level === 'stale' &&
+    (session.execution === 'RUNNING' || session.execution === 'UNKNOWN');
+
   const controls = (isModal = false) => (
     <>
-      {(error || pending) && (
+      {(error || pending || (!isModal && isStaleWorker)) && (
         <div className={styles.inlineStatus}>
           {error ? (
             <span role="alert">
               {error} <button onClick={() => void reload(true)}>{t.common.reload}</button>
             </span>
-          ) : (
+          ) : pending ? (
             <button onClick={latest}>{t.card.viewLatestOutput}</button>
+          ) : (
+            <span role="status" className={styles.staleInlineStatus}>
+              ⚠️ {t.card.staleNotice}{' '}
+              <button onClick={() => void reload(true)}>{t.common.reload}</button>
+            </span>
           )}
         </div>
       )}
@@ -771,7 +796,10 @@ export function SessionCard({
             }}
             aria-label={t.card.interact}
           >
-            {session.execution === 'WAITING_APPROVAL' ? '⚡ ' : ''}
+            {session.execution === 'WAITING_APPROVAL' ||
+            session.execution === 'WAITING_INPUT'
+              ? '⚡ '
+              : ''}
             {t.card.interact}
           </button>
         </div>
@@ -799,6 +827,7 @@ export function SessionCard({
         data-order={session.order}
         data-execution={session.execution}
         data-attention={session.attention}
+        data-freshness={freshness.level}
         data-archiving={isArchiving}
         onClick={(e) => {
           if (typeof window === 'undefined') return;
@@ -831,6 +860,12 @@ export function SessionCard({
                     : t.card.noRecentUpdate
                   : executionLabel[session.execution]}
               </span>
+              <TaskAgeBadge
+                updatedAt={session.updatedAt}
+                execution={session.execution}
+                activityLabel={activity?.label}
+                compact
+              />
               {(session.attention === 'UNREAD_COMPLETION' ||
                 session.attention === 'UNREAD_OUTPUT' ||
                 newlyDiscovered) && (
@@ -840,7 +875,6 @@ export function SessionCard({
               )}
             </div>
             <span className={styles.mobileEnterHint}>
-              {updatedTimeStr && <time>{updatedTimeStr}</time>}
               <span className={styles.mobileChevron} aria-hidden="true">
                 ›
               </span>
@@ -863,6 +897,12 @@ export function SessionCard({
           <div className={styles.expandedCard}>
             {renderHeader(true)}
             {badges}
+            {isStaleWorker && (
+              <div className={styles.staleNoticeBanner} role="status">
+                <span className={styles.staleWarningIcon}>⚠️</span>
+                <span>{t.card.staleNotice}</span>
+              </div>
+            )}
             {body(true)}
             <InteractionPanel
               id={session.id}

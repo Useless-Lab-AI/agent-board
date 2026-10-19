@@ -14,6 +14,7 @@ import {
   type AntigravityCredentials,
 } from './antigravity-ls.js';
 import { formatPromptWithAttachments } from './interaction.js';
+import { resolveClaudeWorkspace } from './claude-client.js';
 
 export interface CreateSessionOptions {
   provider: 'codex' | 'claude' | 'antigravity';
@@ -362,6 +363,9 @@ export async function createSession(
     const computedTitle =
       customTitle || options.prompt?.trim().split('\n')[0].slice(0, 240) || '新建会话';
 
+    const { cwd: claudeCwd, addDirs } = await resolveClaudeWorkspace(targetCwd);
+    const addDirArgs = addDirs.map((dir) => `--add-dir=${dir}`);
+
     const bridgeExe = path.join(context.claudeHome, 'agent-board-bridge.exe');
     const hasBridge = existsSync(bridgeExe);
 
@@ -370,9 +374,10 @@ export async function createSession(
       const claudeBase = hasBridge ? `& ${escapePowershellArg(bridgeExe)}` : 'claude';
       const psSessionArg = ` --session-id ${escapePowershellArg(sessionId)}`;
       const psNameArg = customTitle ? ` --name ${escapePowershellArg(customTitle)}` : '';
-      const psPromptArg = prompt ? ` ${escapePowershellArg(prompt)}` : '';
       const psModelArg = modelParam ? ` --model ${escapePowershellArg(modelParam)}` : '';
-      const fullCmd = `${claudeBase}${psSessionArg}${psNameArg}${psModelArg}${psPromptArg}`;
+      const psAddDirsArg = addDirs.map((d) => ` --add-dir ${escapePowershellArg(d)}`).join('');
+      const psPromptArg = prompt ? ` ${escapePowershellArg(prompt)}` : '';
+      const fullCmd = `$env:CLAUDE_CODE_ENTRYPOINT='claude-vscode'; ${claudeBase}${psSessionArg}${psNameArg}${psModelArg}${psAddDirsArg}${psPromptArg}`;
 
       if (process.platform === 'win32') {
         if (wtAvailable) {
@@ -381,7 +386,7 @@ export async function createSession(
             '0',
             'nt',
             '-d',
-            targetCwd,
+            claudeCwd,
             'powershell',
             '-NoExit',
             '-Command',
@@ -390,7 +395,7 @@ export async function createSession(
           const child = spawn('wt.exe', wtArgs, { detached: true, stdio: 'ignore' });
           child.unref();
         } else {
-          const psCommand = `Set-Location ${escapePowershellArg(targetCwd)}; ${fullCmd}`;
+          const psCommand = `Set-Location ${escapePowershellArg(claudeCwd)}; ${fullCmd}`;
           const child = spawn(
             'cmd.exe',
             ['/c', 'start', 'powershell', '-NoExit', '-Command', psCommand],
@@ -402,14 +407,18 @@ export async function createSession(
           child.unref();
         }
       } else {
-        const args: string[] = ['--session-id', sessionId];
+        const args: string[] = ['--session-id', sessionId, ...addDirArgs];
         if (customTitle) args.push('--name', customTitle);
         if (modelParam) args.push('--model', modelParam);
         if (prompt) args.push(prompt);
         const child = spawn('claude', args, {
-          cwd: targetCwd,
+          cwd: claudeCwd,
           detached: true,
           stdio: 'ignore',
+          env: {
+            ...process.env,
+            CLAUDE_CODE_ENTRYPOINT: 'claude-vscode',
+          },
         });
         child.unref();
       }
@@ -421,15 +430,20 @@ export async function createSession(
         '--dangerously-skip-permissions',
         '--settings',
         '{"hooks":{}}',
+        ...addDirArgs,
       ];
       if (customTitle) args.push('--name', customTitle);
       if (modelParam) args.push('--model', modelParam);
       args.push('-p', prompt || 'Hello');
       const child = spawn(exe, args, {
-        cwd: targetCwd,
+        cwd: claudeCwd,
         shell: !hasBridge && process.platform === 'win32',
         detached: true,
         stdio: 'ignore',
+        env: {
+          ...process.env,
+          CLAUDE_CODE_ENTRYPOINT: 'claude-vscode',
+        },
       });
       child.unref();
     }
@@ -438,7 +452,7 @@ export async function createSession(
       context.titles.values.set(id, { title: computedTitle });
     }
 
-    const encodedFolder = targetCwd.replace(/[^a-zA-Z0-9]/g, '-');
+    const encodedFolder = claudeCwd.replace(/[^a-zA-Z0-9]/g, '-');
     const projectsRoot = path.join(context.claudeHome, 'projects');
     const transcriptPath = path.join(projectsRoot, encodedFolder, `${sessionId}.jsonl`);
 
@@ -461,7 +475,7 @@ export async function createSession(
       id,
       nativeId: sessionId,
       provider: 'claude',
-      cwd: targetCwd,
+      cwd: claudeCwd,
       files: transcriptStat
         ? [
             {
@@ -472,7 +486,7 @@ export async function createSession(
               size: transcriptStat.size,
               mtime: transcriptStat.mtimeMs,
               anchor: '',
-              head: { sessionId, cwd: targetCwd, title: computedTitle },
+              head: { sessionId, cwd: claudeCwd, title: computedTitle },
             },
           ]
         : [],

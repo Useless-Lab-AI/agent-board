@@ -119,7 +119,6 @@ export const AGENT_MODELS: Record<Provider, { value: string; label: string }[]> 
 export function NewSessionModal({
   isOpen,
   initialProvider = 'antigravity',
-  currentSessionCwd,
   allSessions,
   onClose,
   onSuccess,
@@ -127,6 +126,9 @@ export function NewSessionModal({
   const { t } = useI18n();
   const dialog = useRef<HTMLDialogElement>(null);
   const promptInputRef = useRef<HTMLTextAreaElement>(null);
+  const allSessionsRef = useRef<SessionView[] | undefined>(allSessions);
+  allSessionsRef.current = allSessions;
+  const userModifiedProjectRef = useRef(false);
 
   const [provider, setProvider] = useState<Provider>(initialProvider);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
@@ -203,9 +205,11 @@ export function NewSessionModal({
     }
   }, [isOpen, initialProvider]);
 
-  // Load projects, auto-detect current session cwd, and merge history
+  // Load projects and merge history only once when modal opens
   useEffect(() => {
     if (!isOpen) return;
+    userModifiedProjectRef.current = false;
+    let cancelled = false;
 
     let localProjects: ProjectItem[] = [];
     try {
@@ -223,6 +227,7 @@ export function NewSessionModal({
       defaultCwd = '',
       fromServer = false,
     ) => {
+      if (cancelled) return;
       const projectMap = new Map<string, ProjectItem>();
       const localByNorm = new Map<string, ProjectItem>();
       for (const p of localProjects) {
@@ -259,8 +264,9 @@ export function NewSessionModal({
             lastUsed: p.lastUsed || 0,
           });
         }
-        if (allSessions) {
-          for (const s of allSessions) {
+        const currentAllSessions = allSessionsRef.current;
+        if (currentAllSessions) {
+          for (const s of currentAllSessions) {
             if (!s.cwd || typeof s.cwd !== 'string' || isNonProjectPath(s.cwd)) continue;
             const c = s.cwd.trim();
             const norm = normalizePath(c);
@@ -288,40 +294,8 @@ export function NewSessionModal({
         }
       }
 
-      let matchedCurrentPath = '';
-      if (currentSessionCwd && currentSessionCwd.trim() && !isNonProjectPath(currentSessionCwd)) {
-        const currNorm = normalizePath(currentSessionCwd);
-        let curr = projectMap.get(currNorm);
-        if (!curr) {
-          // Check if currentSessionCwd is a subdirectory of a known project root
-          for (const [projNorm, projItem] of projectMap.entries()) {
-            if (currNorm.startsWith(`${projNorm}\\`)) {
-              curr = projItem;
-              break;
-            }
-          }
-        }
-        if (!curr && !fromServer) {
-          curr = {
-            id: currNorm,
-            name: getPathBasename(currentSessionCwd),
-            path: currentSessionCwd.trim(),
-            lastUsed: Date.now(),
-          };
-          projectMap.set(currNorm, curr);
-        }
-        if (curr) {
-          curr.isCurrentSession = true;
-          matchedCurrentPath = curr.path;
-        }
-      }
-
       const list = Array.from(projectMap.values());
-      list.sort((a, b) => {
-        if (a.isCurrentSession && !b.isCurrentSession) return -1;
-        if (!a.isCurrentSession && b.isCurrentSession) return 1;
-        return (b.lastUsed ?? 0) - (a.lastUsed ?? 0);
-      });
+      list.sort((a, b) => (b.lastUsed ?? 0) - (a.lastUsed ?? 0));
 
       setProjects(list);
 
@@ -332,22 +306,23 @@ export function NewSessionModal({
         } catch {}
       }
 
+      // Never overwrite if the user has already manually selected/edited the project
+      if (userModifiedProjectRef.current) {
+        return;
+      }
+
       let targetPath = '';
-      if (matchedCurrentPath) {
-        targetPath = matchedCurrentPath;
-      } else {
-        const lastSaved = localStorage.getItem(STORAGE_LAST_PATH_KEY);
-        const matchedSaved =
-          lastSaved && !isNonProjectPath(lastSaved)
-            ? list.find((p) => normalizePath(p.path) === normalizePath(lastSaved))
-            : undefined;
-        if (matchedSaved) {
-          targetPath = matchedSaved.path;
-        } else if (list.length > 0) {
-          targetPath = list[0].path;
-        } else if (defaultCwd && !isNonProjectPath(defaultCwd)) {
-          targetPath = defaultCwd;
-        }
+      const lastSaved = localStorage.getItem(STORAGE_LAST_PATH_KEY);
+      const matchedSaved =
+        lastSaved && !isNonProjectPath(lastSaved)
+          ? list.find((p) => normalizePath(p.path) === normalizePath(lastSaved))
+          : undefined;
+      if (matchedSaved) {
+        targetPath = matchedSaved.path;
+      } else if (list.length > 0) {
+        targetPath = list[0].path;
+      } else if (defaultCwd && !isNonProjectPath(defaultCwd)) {
+        targetPath = defaultCwd;
       }
 
       if (targetPath) {
@@ -364,6 +339,10 @@ export function NewSessionModal({
       }
     };
 
+    if (localProjects.length > 0) {
+      mergeAndApply([], '', false);
+    }
+
     request<{ projects: ProjectItem[]; defaultCwd: string }>('/api/projects')
       .then((res) => {
         mergeAndApply(res.projects || [], res.defaultCwd, true);
@@ -371,7 +350,11 @@ export function NewSessionModal({
       .catch(() => {
         mergeAndApply([], '', false);
       });
-  }, [isOpen, currentSessionCwd, allSessions]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   // Native dialog showModal & auto focus
   useLayoutEffect(() => {
@@ -386,6 +369,7 @@ export function NewSessionModal({
   }, [isOpen]);
 
   const handleProjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    userModifiedProjectRef.current = true;
     const val = e.target.value;
     if (val === '__custom__') {
       setIsCustomPath(true);
@@ -404,6 +388,7 @@ export function NewSessionModal({
   };
 
   const handleRemoveProject = (pathToRemove: string) => {
+    userModifiedProjectRef.current = true;
     const norm = normalizePath(pathToRemove);
     const updated = projects.filter((p) => normalizePath(p.path) !== norm);
     setProjects(updated);
@@ -600,9 +585,7 @@ export function NewSessionModal({
                 >
                   {projects.map((p) => (
                     <option key={p.id} value={p.path}>
-                      {p.isCurrentSession ? '✨ ' : '📁 '}
-                      {p.name} ({p.path})
-                      {p.isCurrentSession ? ` ${t.newSession.currentSessionBadge}` : ''}
+                      📁 {p.name} ({p.path})
                     </option>
                   ))}
                   <option value="__custom__">{t.newSession.customPathOption}</option>
@@ -618,7 +601,10 @@ export function NewSessionModal({
                       <button
                         type="button"
                         className={styles.newSessionProjectBtn}
-                        onClick={() => setIsCustomPath(true)}
+                        onClick={() => {
+                          userModifiedProjectRef.current = true;
+                          setIsCustomPath(true);
+                        }}
                         title={t.newSession.editOrEnterPath}
                       >
                         ✏️ {t.newSession.manualEdit}
@@ -643,6 +629,7 @@ export function NewSessionModal({
                       className={styles.newSessionInput}
                       value={cwd}
                       onChange={(e) => {
+                        userModifiedProjectRef.current = true;
                         const nextVal = e.target.value;
                         setCwd(nextVal);
                         if (!customProjectName || customProjectName === getPathBasename(cwd)) {
@@ -659,7 +646,10 @@ export function NewSessionModal({
                         type="text"
                         className={styles.newSessionInputSmall}
                         value={customProjectName}
-                        onChange={(e) => setCustomProjectName(e.target.value)}
+                        onChange={(e) => {
+                          userModifiedProjectRef.current = true;
+                          setCustomProjectName(e.target.value);
+                        }}
                         placeholder={t.newSession.projectNamePlaceholder}
                         title={t.newSession.projectNameLabel}
                       />
@@ -668,12 +658,15 @@ export function NewSessionModal({
                           type="button"
                           className={styles.newSessionProjectBtn}
                           onClick={() => {
+                            userModifiedProjectRef.current = true;
                             setIsCustomPath(false);
                             if (projects.length > 0) {
-                              const first = projects.find((p) => p.isCurrentSession) || projects[0];
-                              setSelectedProjectKey(first.path);
-                              setCwd(first.path);
-                              setCustomProjectName(first.name);
+                              const matched =
+                                projects.find((p) => normalizePath(p.path) === normalizePath(selectedProjectKey)) ||
+                                projects[0];
+                              setSelectedProjectKey(matched.path);
+                              setCwd(matched.path);
+                              setCustomProjectName(matched.name);
                             }
                           }}
                         >
