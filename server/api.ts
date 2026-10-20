@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-import { createServer, type ServerResponse } from 'node:http';
+import { createServer, get as httpGet, type ServerResponse } from 'node:http';
+import { get as httpsGet } from 'node:https';
+import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import { existsSync, readdirSync, realpathSync, statSync, watch, type FSWatcher } from 'node:fs';
+import { createWriteStream, existsSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, watch, type FSWatcher } from 'node:fs';
 import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
@@ -81,6 +83,268 @@ let statuses = new Map<string, { state: SessionView['execution']; reason: string
 let scanError: string | null = null;
 let scan: Promise<void> | undefined;
 let initialized = false;
+
+interface ServerUpdateState {
+  status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+  currentVersion: string;
+  latestVersion: string | null;
+  releaseUrl: string;
+  downloadUrl: string | null;
+  progressPercent: number | null;
+  error: string | null;
+}
+
+const serverUpdateState: ServerUpdateState = {
+  status: 'idle',
+  currentVersion: '0.1.2',
+  latestVersion: null,
+  releaseUrl: 'https://github.com/Useless-Lab-AI/agent-board/releases/latest',
+  downloadUrl: null,
+  progressPercent: null,
+  error: null,
+};
+
+let serverDownloadedInstallerPath: string | null = null;
+
+async function resolveServerVersion(): Promise<string> {
+  let currentVersion = serverUpdateState.currentVersion || '0.1.2';
+  try {
+    const selfDir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+    const pkgCandidates = [
+      path.resolve(selfDir, '../../package.json'),
+      path.resolve(selfDir, '../package.json'),
+      path.resolve(process.cwd(), 'package.json'),
+    ];
+    for (const p of pkgCandidates) {
+      if (existsSync(p)) {
+        const pkg = JSON.parse(await readFile(p, 'utf8'));
+        if (pkg?.name === 'agent-board' && typeof pkg.version === 'string' && pkg.version) {
+          currentVersion = pkg.version;
+          break;
+        }
+      }
+    }
+  } catch {}
+  return currentVersion;
+}
+
+async function fetchLatestReleaseInfo(currentVersion: string) {
+  const ghRes = await fetch('https://api.github.com/repos/Useless-Lab-AI/agent-board/releases/latest', {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': `Agent-Board/${currentVersion}`,
+    },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!ghRes.ok) {
+    throw new Error(`GitHub API HTTP ${ghRes.status}`);
+  }
+  const release = (await ghRes.json()) as {
+    tag_name?: string;
+    html_url?: string;
+    published_at?: string;
+    assets?: Array<{ name?: string; browser_download_url?: string }>;
+  };
+  const latestVersion = String(release.tag_name ?? '').replace(/^v/i, '').trim() || currentVersion;
+  const parseVer = (v: string) =>
+    v
+      .split('-')[0]
+      .split('.')
+      .map((n) => Number.parseInt(n, 10) || 0);
+  const [cMaj = 0, cMin = 0, cPat = 0] = parseVer(currentVersion);
+  const [lMaj = 0, lMin = 0, lPat = 0] = parseVer(latestVersion);
+  const hasUpdate =
+    lMaj > cMaj || (lMaj === cMaj && lMin > cMin) || (lMaj === cMaj && lMin === cMin && lPat > cPat);
+
+  let downloadUrl: string | null = null;
+  const assets = Array.isArray(release.assets) ? release.assets : [];
+  const plat = process.platform;
+  const arch = process.arch;
+  for (const a of assets) {
+    const name = String(a.name ?? '').toLowerCase();
+    const dl = a.browser_download_url ?? null;
+    if (!dl || name.endsWith('.blockmap') || name.endsWith('.yml') || name.endsWith('.txt')) continue;
+    if (plat === 'win32' && name.endsWith('.exe')) {
+      downloadUrl = dl;
+      break;
+    }
+    if (plat === 'darwin' && name.endsWith('.dmg')) {
+      if ((arch === 'arm64' && name.includes('arm64')) || (arch !== 'arm64' && name.includes('x64'))) {
+        downloadUrl = dl;
+        break;
+      }
+      if (!downloadUrl) downloadUrl = dl;
+    }
+    if (plat === 'linux' && (name.endsWith('.appimage') || name.endsWith('.deb'))) {
+      if (name.endsWith('.appimage')) {
+        downloadUrl = dl;
+        break;
+      }
+      if (!downloadUrl) downloadUrl = dl;
+    }
+  }
+
+  return {
+    currentVersion,
+    latestVersion,
+    hasUpdate,
+    releaseUrl: release.html_url ?? 'https://github.com/Useless-Lab-AI/agent-board/releases/latest',
+    downloadUrl,
+    publishedAt: release.published_at ?? null,
+  };
+}
+
+function downloadInstallerToTemp(urlStr: string, destPath: string, redirectsLeft = 5): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (redirectsLeft < 0) {
+      reject(new Error('Too many redirects while downloading update installer'));
+      return;
+    }
+    const partPath = `${destPath}.part`;
+    const client = urlStr.startsWith('https:') ? httpsGet : httpGet;
+    const req = client(
+      urlStr,
+      {
+        headers: {
+          'User-Agent': `Agent-Board/${serverUpdateState.currentVersion}`,
+        },
+      },
+      (res) => {
+        if (
+          res.statusCode &&
+          res.statusCode >= 300 &&
+          res.statusCode < 400 &&
+          res.headers.location
+        ) {
+          res.resume();
+          const nextUrl = new URL(res.headers.location, urlStr).toString();
+          downloadInstallerToTemp(nextUrl, destPath, redirectsLeft - 1)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          reject(new Error(`Download HTTP ${res.statusCode}`));
+          return;
+        }
+        const totalBytes = Number(res.headers['content-length'] ?? 0);
+        let receivedBytes = 0;
+        const fileStream = createWriteStream(partPath);
+        res.on('data', (chunk: Buffer) => {
+          receivedBytes += chunk.length;
+          if (totalBytes > 0) {
+            const pct = Math.max(1, Math.min(99, Math.round((receivedBytes / totalBytes) * 100)));
+            serverUpdateState.progressPercent = pct;
+          }
+        });
+        res.pipe(fileStream);
+        fileStream.on('finish', () => {
+          fileStream.close(() => {
+            try {
+              if (existsSync(destPath)) unlinkSync(destPath);
+              renameSync(partPath, destPath);
+              resolve(destPath);
+            } catch (e) {
+              reject(e);
+            }
+          });
+        });
+        fileStream.on('error', (err) => {
+          try {
+            if (existsSync(partPath)) unlinkSync(partPath);
+          } catch {}
+          reject(err);
+        });
+      },
+    );
+    req.setTimeout(30000, () => {
+      req.destroy(new Error('Download connection timed out'));
+    });
+    req.on('error', (err) => {
+      try {
+        if (existsSync(partPath)) unlinkSync(partPath);
+      } catch {}
+      reject(err);
+    });
+  });
+}
+
+function launchServerDownloadedInstaller(): boolean {
+  if (!serverDownloadedInstallerPath || !existsSync(serverDownloadedInstallerPath)) {
+    return false;
+  }
+  try {
+    if (process.platform === 'win32') {
+      const args = ['--updated', '/S', '--force-run'];
+      const defaultInstallDir = path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local'), 'Programs', 'agent-board');
+      if (existsSync(defaultInstallDir)) {
+        args.push(`/D=${defaultInstallDir}`);
+      }
+      const child = spawn(serverDownloadedInstallerPath, args, {
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+      broadcast('system-update-quit', {});
+      return true;
+    }
+    if (process.platform === 'darwin') {
+      const child = spawn('open', [serverDownloadedInstallerPath], {
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+async function startServerUpdateDownload(): Promise<ServerUpdateState & { fallbackBrowser?: boolean }> {
+  if (serverUpdateState.status === 'downloading') {
+    return { ...serverUpdateState };
+  }
+  serverUpdateState.currentVersion = await resolveServerVersion();
+  if (!serverUpdateState.downloadUrl) {
+    try {
+      const info = await fetchLatestReleaseInfo(serverUpdateState.currentVersion);
+      serverUpdateState.latestVersion = info.latestVersion;
+      serverUpdateState.releaseUrl = info.releaseUrl;
+      serverUpdateState.downloadUrl = info.downloadUrl;
+    } catch {}
+  }
+  if (!serverUpdateState.downloadUrl) {
+    return { ...serverUpdateState, fallbackBrowser: true };
+  }
+
+  serverUpdateState.status = 'downloading';
+  serverUpdateState.progressPercent = 0;
+  serverUpdateState.error = null;
+  serverDownloadedInstallerPath = null;
+
+  const dlUrl = serverUpdateState.downloadUrl;
+  const parsedUrl = new URL(dlUrl);
+  const fileName = path.basename(parsedUrl.pathname) || `Agent-Board-${serverUpdateState.latestVersion || 'latest'}-installer.exe`;
+  const destPath = path.join(os.tmpdir(), fileName);
+
+  void downloadInstallerToTemp(dlUrl, destPath)
+    .then((savedPath) => {
+      serverDownloadedInstallerPath = savedPath;
+      serverUpdateState.status = 'downloaded';
+      serverUpdateState.progressPercent = 100;
+      serverUpdateState.error = null;
+      setTimeout(() => {
+        launchServerDownloadedInstaller();
+      }, 500);
+    })
+    .catch((err) => {
+      serverUpdateState.status = 'error';
+      serverUpdateState.error = (err as Error).message || String(err);
+    });
+
+  return { ...serverUpdateState };
+}
 
 const PROJECT_MARKERS = [
   '.git',
@@ -810,24 +1074,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/system/version') {
-      let currentVersion = '0.1.2';
-      try {
-        const pkgCandidates = [
-          path.resolve(process.cwd(), 'package.json'),
-          path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '../../package.json'),
-          path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '../package.json'),
-        ];
-        for (const p of pkgCandidates) {
-          if (existsSync(p)) {
-            const pkg = JSON.parse(await readFile(p, 'utf8'));
-            if (typeof pkg.version === 'string' && pkg.version) {
-              currentVersion = pkg.version;
-              break;
-            }
-          }
-        }
-      } catch {}
-
+      const currentVersion = await resolveServerVersion();
       const shouldCheck = url.searchParams.get('check') === '1';
       if (!shouldCheck) {
         res.end(
@@ -843,71 +1090,15 @@ const server = createServer(async (req, res) => {
       }
 
       try {
-        const ghRes = await fetch('https://api.github.com/repos/Useless-Lab-AI/agent-board/releases/latest', {
-          headers: {
-            Accept: 'application/vnd.github+json',
-            'User-Agent': `Agent-Board/${currentVersion}`,
-          },
-          signal: AbortSignal.timeout(8000),
-        });
-        if (!ghRes.ok) {
-          throw new Error(`GitHub API HTTP ${ghRes.status}`);
+        const info = await fetchLatestReleaseInfo(currentVersion);
+        serverUpdateState.currentVersion = currentVersion;
+        serverUpdateState.latestVersion = info.latestVersion;
+        serverUpdateState.releaseUrl = info.releaseUrl;
+        serverUpdateState.downloadUrl = info.downloadUrl;
+        if (serverUpdateState.status !== 'downloading' && serverUpdateState.status !== 'downloaded') {
+          serverUpdateState.status = info.hasUpdate ? 'available' : 'not-available';
         }
-        const release = (await ghRes.json()) as {
-          tag_name?: string;
-          html_url?: string;
-          published_at?: string;
-          assets?: Array<{ name?: string; browser_download_url?: string }>;
-        };
-        const latestVersion = String(release.tag_name ?? '').replace(/^v/i, '').trim() || currentVersion;
-        const parseVer = (v: string) =>
-          v
-            .split('-')[0]
-            .split('.')
-            .map((n) => Number.parseInt(n, 10) || 0);
-        const [cMaj = 0, cMin = 0, cPat = 0] = parseVer(currentVersion);
-        const [lMaj = 0, lMin = 0, lPat = 0] = parseVer(latestVersion);
-        const hasUpdate =
-          lMaj > cMaj || (lMaj === cMaj && lMin > cMin) || (lMaj === cMaj && lMin === cMin && lPat > cPat);
-
-        let downloadUrl: string | null = null;
-        const assets = Array.isArray(release.assets) ? release.assets : [];
-        const plat = process.platform;
-        const arch = process.arch;
-        for (const a of assets) {
-          const name = String(a.name ?? '').toLowerCase();
-          const dl = a.browser_download_url ?? null;
-          if (!dl || name.endsWith('.blockmap') || name.endsWith('.yml') || name.endsWith('.txt')) continue;
-          if (plat === 'win32' && name.endsWith('.exe')) {
-            downloadUrl = dl;
-            break;
-          }
-          if (plat === 'darwin' && name.endsWith('.dmg')) {
-            if ((arch === 'arm64' && name.includes('arm64')) || (arch !== 'arm64' && name.includes('x64'))) {
-              downloadUrl = dl;
-              break;
-            }
-            if (!downloadUrl) downloadUrl = dl;
-          }
-          if (plat === 'linux' && (name.endsWith('.appimage') || name.endsWith('.deb'))) {
-            if (name.endsWith('.appimage')) {
-              downloadUrl = dl;
-              break;
-            }
-            if (!downloadUrl) downloadUrl = dl;
-          }
-        }
-
-        res.end(
-          JSON.stringify({
-            currentVersion,
-            latestVersion,
-            hasUpdate,
-            releaseUrl: release.html_url ?? 'https://github.com/Useless-Lab-AI/agent-board/releases/latest',
-            downloadUrl,
-            publishedAt: release.published_at ?? null,
-          }),
-        );
+        res.end(JSON.stringify(info));
       } catch (err) {
         res.end(
           JSON.stringify({
@@ -921,6 +1112,25 @@ const server = createServer(async (req, res) => {
         );
       }
       return;
+    }
+    if (url.pathname === '/api/system/update') {
+      if (req.method === 'GET') {
+        serverUpdateState.currentVersion = await resolveServerVersion();
+        res.end(JSON.stringify(serverUpdateState));
+        return;
+      }
+      if (req.method === 'POST') {
+        const body = (await jsonBody(req)) as { action?: string };
+        const action = body?.action ?? 'start';
+        if (action === 'install') {
+          const launched = launchServerDownloadedInstaller();
+          res.end(JSON.stringify({ ok: launched, fallbackBrowser: !launched, ...serverUpdateState }));
+          return;
+        }
+        const state = await startServerUpdateDownload();
+        res.end(JSON.stringify(state));
+        return;
+      }
     }
     if (req.method === 'GET' && url.pathname === '/api/projects') {
       if (!initialized) await reconcile();

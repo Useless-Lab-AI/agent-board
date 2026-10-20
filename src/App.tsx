@@ -198,16 +198,27 @@ function BoardApp() {
   const handleManualCheckUpdate = async () => {
     playSound('click');
     setUpdateDismissed(false);
+    setUpdateState((prev) => ({ ...prev, status: 'checking', error: null }));
     const desktopApi = (window as any).agentBoardDesktop;
     if (desktopApi && typeof desktopApi.checkForUpdates === 'function') {
-      const next = await desktopApi.checkForUpdates(true);
-      if (next?.status === 'not-available') {
-        setShowUpToDateToast(true);
-        setTimeout(() => setShowUpToDateToast(false), 3500);
+      try {
+        const next = await desktopApi.checkForUpdates(true);
+        if (next && typeof next.currentVersion === 'string') {
+          setUpdateState(next);
+        }
+        if (next?.status === 'not-available') {
+          setShowUpToDateToast(true);
+          setTimeout(() => setShowUpToDateToast(false), 3500);
+        }
+      } catch (err) {
+        setUpdateState((prev) => ({
+          ...prev,
+          status: 'error',
+          error: (err as Error).message,
+        }));
       }
       return;
     }
-    setUpdateState((prev) => ({ ...prev, status: 'checking', error: null }));
     try {
       const res = await request<{
         currentVersion: string;
@@ -250,13 +261,77 @@ function BoardApp() {
 
   const handleStartUpdate = async () => {
     playSound('click');
+    setUpdateDismissed(false);
+    setUpdateState((prev) => ({
+      ...prev,
+      status: 'downloading',
+      progressPercent: prev.progressPercent ?? 0,
+      error: null,
+    }));
+
     const desktopApi = (window as any).agentBoardDesktop;
     if (desktopApi && typeof desktopApi.startUpdate === 'function') {
-      await desktopApi.startUpdate();
+      try {
+        const next = await desktopApi.startUpdate();
+        if (next && typeof next.currentVersion === 'string') {
+          setUpdateState(next);
+        }
+      } catch (err) {
+        setUpdateState((prev) => ({
+          ...prev,
+          status: 'error',
+          error: (err as Error).message,
+        }));
+      }
       return;
     }
-    const targetUrl = updateState.downloadUrl || updateState.releaseUrl;
-    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+
+    try {
+      const startRes = await request<{
+        status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+        currentVersion: string;
+        latestVersion: string | null;
+        releaseUrl: string;
+        downloadUrl: string | null;
+        progressPercent: number | null;
+        error: string | null;
+        fallbackBrowser?: boolean;
+      }>('/api/system/update', { action: 'start' });
+
+      if (startRes?.fallbackBrowser) {
+        const targetUrl = startRes.downloadUrl || updateState.downloadUrl || updateState.releaseUrl;
+        setUpdateState((prev) => ({ ...prev, status: 'available', progressPercent: null }));
+        window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      if (startRes && typeof startRes.currentVersion === 'string') {
+        setUpdateState(startRes);
+      }
+
+      const poll = async () => {
+        for (let i = 0; i < 600; i++) {
+          await new Promise((r) => setTimeout(r, 400));
+          const st = await request<{
+            status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+            currentVersion: string;
+            latestVersion: string | null;
+            releaseUrl: string;
+            downloadUrl: string | null;
+            progressPercent: number | null;
+            error: string | null;
+          }>('/api/system/update');
+          if (!st || typeof st.currentVersion !== 'string') break;
+          setUpdateState(st);
+          if (st.status !== 'downloading') break;
+        }
+      };
+      void poll();
+    } catch {
+      const targetUrl = updateState.downloadUrl || updateState.releaseUrl;
+      setUpdateState((prev) => ({ ...prev, status: 'available', progressPercent: null }));
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const handleInstallUpdate = async () => {
@@ -266,6 +341,12 @@ function BoardApp() {
       await desktopApi.installUpdate();
       return;
     }
+    try {
+      const res = await request<{ ok?: boolean; fallbackBrowser?: boolean }>('/api/system/update', {
+        action: 'install',
+      });
+      if (!res?.fallbackBrowser) return;
+    } catch {}
     const targetUrl = updateState.downloadUrl || updateState.releaseUrl;
     window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
@@ -682,21 +763,65 @@ function BoardApp() {
           <button
             type="button"
             className={`${styles.versionChip} ${
-              updateState.status === 'available' || updateState.status === 'downloaded'
+              updateState.status === 'available' ||
+              updateState.status === 'downloading' ||
+              updateState.status === 'downloaded'
                 ? styles.versionChipUpdate
                 : ''
             }`}
-            onClick={() => void handleManualCheckUpdate()}
-            title={t.updater.checkBtn}
-            aria-label={t.updater.checkBtn}
+            onClick={() => {
+              if (updateState.status === 'available') {
+                void handleStartUpdate();
+              } else if (updateState.status === 'downloaded') {
+                void handleInstallUpdate();
+              } else if (
+                updateState.status === 'downloading' ||
+                updateState.status === 'checking'
+              ) {
+                setUpdateDismissed(false);
+              } else {
+                void handleManualCheckUpdate();
+              }
+            }}
+            title={
+              updateState.status === 'available'
+                ? t.updater.updateNowBtn
+                : updateState.status === 'downloaded'
+                  ? t.updater.restartInstallBtn
+                  : updateState.status === 'downloading'
+                    ? t.updater.downloadingTitle(
+                        updateState.latestVersion || '',
+                        updateState.progressPercent ?? 0,
+                      )
+                    : t.updater.checkBtn
+            }
+            aria-label={
+              updateState.status === 'available'
+                ? t.updater.updateNowBtn
+                : updateState.status === 'downloaded'
+                  ? t.updater.restartInstallBtn
+                  : updateState.status === 'downloading'
+                    ? t.updater.downloadingTitle(
+                        updateState.latestVersion || '',
+                        updateState.progressPercent ?? 0,
+                      )
+                    : t.updater.checkBtn
+            }
           >
             {updateState.status === 'checking'
               ? t.updater.checking
-              : updateState.status === 'available' || updateState.status === 'downloaded'
-                ? t.updater.availableBadge(updateState.latestVersion || '')
-                : showUpToDateToast
-                  ? t.updater.upToDate(updateState.currentVersion)
-                  : `v${updateState.currentVersion}`}
+              : updateState.status === 'downloading'
+                ? t.updater.downloadingTitle(
+                    updateState.latestVersion || '',
+                    updateState.progressPercent ?? 0,
+                  )
+                : updateState.status === 'downloaded'
+                  ? t.updater.restartInstallBtn
+                  : updateState.status === 'available'
+                    ? t.updater.availableBadge(updateState.latestVersion || '')
+                    : showUpToDateToast
+                      ? t.updater.upToDate(updateState.currentVersion)
+                      : `v${updateState.currentVersion}`}
           </button>
           <button
             type="button"

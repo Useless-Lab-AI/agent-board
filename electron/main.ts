@@ -17,6 +17,7 @@ import https from 'node:https';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import electronUpdater from 'electron-updater';
 
@@ -223,6 +224,19 @@ function connectEventStream() {
           const eventType = line.slice(7).trim();
           if (eventType === 'interaction' || eventType === 'change') {
             checkApprovalNotifications();
+          } else if (eventType === 'system-update-quit') {
+            isQuitting = true;
+            if (sseReq) {
+              sseReq.destroy();
+              sseReq = null;
+            }
+            if (serverChild) {
+              serverChild.kill();
+              serverChild = null;
+            }
+            setTimeout(() => {
+              app.quit();
+            }, 250);
           }
         }
       }
@@ -430,6 +444,7 @@ const updateState: AppUpdateState = {
 
 let downloadedInstallerPath: string | null = null;
 let usedNativeUpdater = false;
+let isInstallingUpdate = false;
 let notifiedUpdateVersion: string | null = null;
 let updateCheckTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -457,8 +472,20 @@ function setupNativeAutoUpdater() {
   try {
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
-    // Allow unsigned NSIS updates on Windows
-    (autoUpdater as any).verifyUpdateCodeSignature = false;
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'Useless-Lab-AI',
+      repo: 'agent-board',
+    });
+    // Allow unsigned NSIS updates on Windows (NsisUpdater expects a verifier function returning Promise<null>)
+    (autoUpdater as any).verifyUpdateCodeSignature = () => Promise.resolve(null);
+    if (app.isPackaged && process.platform === 'win32') {
+      (autoUpdater as any).installDirectory = path.dirname(process.execPath);
+    }
+
+    autoUpdater.on('error', (err) => {
+      console.warn('[Agent Board Desktop] autoUpdater error:', err);
+    });
 
     (autoUpdater as any).on('before-quit-for-update', () => {
       isQuitting = true;
@@ -600,6 +627,7 @@ function downloadFileWithProgress(urlStr: string, destPath: string, redirectsLef
       reject(new Error('Too many redirects while downloading update installer'));
       return;
     }
+    const partPath = `${destPath}.part`;
     const client = urlStr.startsWith('https:') ? https : http;
     const req = client.get(
       urlStr,
@@ -630,7 +658,7 @@ function downloadFileWithProgress(urlStr: string, destPath: string, redirectsLef
 
         const totalBytes = Number(res.headers['content-length'] ?? 0);
         let receivedBytes = 0;
-        const fileStream = fs.createWriteStream(destPath);
+        const fileStream = fs.createWriteStream(partPath);
 
         res.on('data', (chunk: Buffer) => {
           receivedBytes += chunk.length;
@@ -646,18 +674,32 @@ function downloadFileWithProgress(urlStr: string, destPath: string, redirectsLef
         res.pipe(fileStream);
 
         fileStream.on('finish', () => {
-          fileStream.close(() => resolve(destPath));
+          fileStream.close(() => {
+            try {
+              if (fs.existsSync(destPath)) {
+                fs.unlinkSync(destPath);
+              }
+              fs.renameSync(partPath, destPath);
+              resolve(destPath);
+            } catch (renameErr) {
+              reject(renameErr);
+            }
+          });
         });
 
         fileStream.on('error', (err) => {
-          fs.unlink(destPath, () => {});
+          fs.unlink(partPath, () => {});
           reject(err);
         });
       },
     );
 
+    req.setTimeout(30000, () => {
+      req.destroy(new Error('Download connection timed out'));
+    });
+
     req.on('error', (err) => {
-      fs.unlink(destPath, () => {});
+      fs.unlink(partPath, () => {});
       reject(err);
     });
   });
@@ -668,11 +710,16 @@ async function startAppUpdate(): Promise<AppUpdateState> {
     return { ...updateState };
   }
 
+  if (!updateState.downloadUrl && !updateState.latestVersion) {
+    await checkForAppUpdates(false);
+  }
+
   updateState.status = 'downloading';
   updateState.progressPercent = 0;
   updateState.error = null;
   usedNativeUpdater = false;
   downloadedInstallerPath = null;
+  isInstallingUpdate = false;
   broadcastUpdateState();
 
   // Strategy 1: Native electron-updater on packaged Windows / Linux AppImage
@@ -685,6 +732,9 @@ async function startAppUpdate(): Promise<AppUpdateState> {
         updateState.status = 'downloaded';
         updateState.progressPercent = 100;
         broadcastUpdateState();
+        setTimeout(() => {
+          void installAppUpdate();
+        }, 500);
         return { ...updateState };
       }
     } catch (nativeErr) {
@@ -705,6 +755,9 @@ async function startAppUpdate(): Promise<AppUpdateState> {
       updateState.progressPercent = 100;
       updateState.error = null;
       broadcastUpdateState();
+      setTimeout(() => {
+        void installAppUpdate();
+      }, 500);
       return { ...updateState };
     } catch (dlErr) {
       updateState.status = 'error';
@@ -722,25 +775,60 @@ async function startAppUpdate(): Promise<AppUpdateState> {
 }
 
 async function installAppUpdate(): Promise<void> {
-  if (usedNativeUpdater) {
+  if (isInstallingUpdate) return;
+  isInstallingUpdate = true;
+
+  const stopChildrenForUpdate = () => {
     isQuitting = true;
+    if (updateCheckTimer) {
+      clearInterval(updateCheckTimer);
+      updateCheckTimer = null;
+    }
+    if (sseReq) {
+      sseReq.destroy();
+      sseReq = null;
+    }
+    if (serverChild) {
+      serverChild.kill();
+      serverChild = null;
+    }
+  };
+
+  if (usedNativeUpdater) {
+    stopChildrenForUpdate();
     setImmediate(() => {
-      autoUpdater.quitAndInstall(false, true);
+      autoUpdater.quitAndInstall(true, true);
     });
     return;
   }
 
   if (downloadedInstallerPath && fs.existsSync(downloadedInstallerPath)) {
-    isQuitting = true;
-    await shell.openPath(downloadedInstallerPath);
+    stopChildrenForUpdate();
     if (process.platform === 'win32') {
+      try {
+        const args = ['--updated', '/S', '--force-run'];
+        if (app.isPackaged) {
+          args.push(`/D=${path.dirname(process.execPath)}`);
+        }
+        const child = spawn(downloadedInstallerPath, args, {
+          detached: true,
+          stdio: 'ignore',
+        });
+        child.unref();
+      } catch {
+        await shell.openPath(downloadedInstallerPath);
+      }
       setTimeout(() => {
         app.quit();
-      }, 600);
+      }, 300);
+      return;
     }
+
+    await shell.openPath(downloadedInstallerPath);
     return;
   }
 
+  isInstallingUpdate = false;
   await shell.openExternal(updateState.downloadUrl || updateState.releaseUrl);
 }
 
