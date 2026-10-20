@@ -1,6 +1,6 @@
 {
   "name": "agent-board",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Local multi-agent grid dashboard for Codex, Claude Code, and Antigravity",
   "author": "Agent Board Contributors",
   "license": "MIT",
